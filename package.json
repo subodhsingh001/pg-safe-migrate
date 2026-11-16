@@ -1,0 +1,39 @@
+{
+  "name": "pg-safe-migrate",
+  "version": "1.1.1",
+  "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
+  "type": "module",
+  "bin": {
+    "pg-safe-migrate": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "node bin/cli.js",
+    "pack:check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "migration",
+    "linter",
+    "prisma",
+    "drizzle",
+    "zero-downtime",
+    "ast"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "libpg-query": "^16.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE"
+  ]
+}

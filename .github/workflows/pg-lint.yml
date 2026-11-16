@@ -1,0 +1,26 @@
+name: PostgreSQL migration risk check
+on:
+  pull_request:
+    paths:
+      - '**/*.sql'
+      - '*.sql'
+      - 'package.json'
+      - 'src/**'
+      - 'bin/**'
+jobs:
+  lint-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Check changed SQL migrations
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: node bin/cli.js --changed "origin/$BASE_REF"
