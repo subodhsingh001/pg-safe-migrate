@@ -1,0 +1,14 @@
+
+{
+  "name": "pg-safe-migrate-orm-verification",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "node verify.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "prisma": "^6.19.0",
+    "drizzle-orm": "^0.44.7"
+  }
+}
