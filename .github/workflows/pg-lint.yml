@@ -1,4 +1,6 @@
+
 name: PostgreSQL migration risk check
+
 on:
   pull_request:
     paths:
@@ -8,26 +10,57 @@ on:
       - 'src/**'
       - 'bin/**'
       - 'test/**'
+      - '.github/workflows/pg-lint.yml'
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    name: Verify PostgreSQL migration linter
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
+          cache: npm
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Run tests
+        run: npm ci --no-audit --no-fund
+
+      - name: Run automated tests
         run: npm test
-      - name: Check changed SQL migrations (pull requests)
+
+      - name: Verify CLI
+        run: node bin/cli.js --help
+
+      - name: Verify safe migration
+        run: node bin/cli.js examples/safe.sql
+
+      - name: Verify unsafe migration is blocked
+        shell: bash
+        run: |
+          set +e
+          node bin/cli.js examples/unsafe.sql
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected exit code 1, got $status"
+            exit 1
+          fi
+
+      - name: Check changed SQL migrations
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
