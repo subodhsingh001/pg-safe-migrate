@@ -4,7 +4,7 @@
   "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
   "type": "module",
   "bin": {
-    "pg-safe-migrate": "./bin/cli.js"
+    "pg-safe-migrate": "bin/cli.js"
   },
   "scripts": {
     "test": "node --test",

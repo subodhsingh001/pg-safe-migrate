@@ -1,26 +1,37 @@
-# v2.0.0-rc.1 — development candidate (NOT production verified)
+# Upgrade notes: v1.1.2 to v2.0.0
 
-This candidate builds on the supplied v1.1.2 project and adds:
-- Config file with per-rule off/warning/error, excludes, and PostgreSQL version metadata.
-- JSON and SARIF reporting, output file, fail threshold and optional migration advisor.
-- Two additional AST rules (PG007, PG011) and PG008 explicit transaction detection.
-- Tests for configuration, reporting and advisor.
+v2.0.0 is published on npm as `@subodh001/pg-safe-migrate@2.0.0`.
 
-## Important limitations
-- PostgreSQL version is stored but **not yet applied** to rule semantics.
-- Transaction scanning uses a token matcher and may match comments/strings; it is not a reliable transaction-aware AST analysis.
-- Locations in AST rule findings are fallback 1:1 and **not exact**.
-- No cross-file analysis, GitHub PR annotation publisher, Prisma/Drizzle-specific guidance, or sandbox verification yet.
-- Existing six rules are retained; no comprehensive false-positive benchmark has been performed.
-- Dependency installation and full test suite could not be verified in this environment.
+## What changed
 
-Do NOT publish this release candidate to npm or merge it to main without running tests and reviewing the limitations.
+- Additional PostgreSQL DDL checks and framework advisories (see README rule table; PG009 is not implemented).
+- Configurable rule severity, exclusions, and PostgreSQL major-version metadata.
+- JSON and SARIF output (`--format`), optional file output (`--output`), `--fail-on` exit threshold, and `--advisor`.
+- Explicit transaction AST checks, source positions, and cross-file dependency heuristics.
+- Release verification covering Node 20/22/24 on Windows/Ubuntu and PostgreSQL 14/16/17 SQL fixtures (reported green by the maintainer on 2026-11-17).
 
-## Commands
-```
+## Severity and compatibility
+
+PG015 (Prisma runner transaction uncertainty), PG016 (Drizzle runner transaction uncertainty), and PG017 (cross-file heuristic) default to `warning` even with the standard global `severity: error`. Explicit per-rule configuration can promote them to errors or turn them off. PG008 (CONCURRENTLY inside explicit SQL transaction) remains an error.
+
+`--fail-on error` returns a nonzero exit code for error-severity findings; `--fail-on warning` also fails for warnings. Review existing CI expectations before upgrading.
+
+## Limitations
+
+- Static SQL AST checks are not a zero-downtime guarantee or a production lock simulator.
+- Prisma and Drizzle SQL fixtures executed by `psql` are not equivalent to running the actual ORM migration tools.
+- Optional baseline runner checks are provided in `test/orm-runner/`; they require a disposable PostgreSQL database and separate dependencies. They have not been executed as part of this package update.
+- PostgreSQL-version-specific behavior is only partially modeled. Cross-file checks are heuristic, and source locations may depend on parser offsets.
+- SARIF report generation and upload availability are separate concerns; inspect repository Code scanning settings and upload results.
+- The curated regression corpus is synthetic; real-world false-positive and false-negative rates have not been measured.
+
+## Verify locally
+
+```powershell
 npm ci
 npm test
-node bin/cli.js examples/unsafe.sql --format json
-node bin/cli.js examples/unsafe.sql --format sarif --output report.sarif
-node bin/cli.js examples/unsafe.sql --advisor
+node test/release-smoke.cjs
+npm pack --dry-run
 ```
+
+For optional ORM-runner tests, see `test/orm-runner/README.md`.

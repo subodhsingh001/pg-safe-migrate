@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "node verify.mjs"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.44.7",
+    "pg": "8.16.3",
+    "prisma": "npm:prisma@6.19.0"
+  }
+}

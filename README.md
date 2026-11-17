@@ -1,4 +1,4 @@
-> **Development notice:** This checkout is a v2.0.0-rc.1 candidate, not the published v1.1.2. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md) for implemented features and unverified limitations.
+> **Current release: v2.0.0.** Static migration risk detection is advisory, not a zero-downtime guarantee. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md) for upgrade details and limitations.
 
 # pg-safe-migrate
 
@@ -6,9 +6,9 @@
 
 An open-source, AST-based PostgreSQL migration risk linter for **Prisma, Drizzle, and raw SQL**.
 
-Detect six common migration patterns that may cause blocking database locks or application compatibility problems.
+Detect risky PostgreSQL DDL patterns and provide additional framework-specific migration advisories.
 
-**Features:** PostgreSQL AST parsing · 6 safety rules · Git-diff mode · GitHub Actions · Zero-config migration detection
+**Features:** PostgreSQL AST parsing · PG001–PG017 identifiers (see rule coverage below) · Git-diff mode · JSON/SARIF · configurable severity · optional advisor · GitHub Actions
 
 > **Important:** This tool identifies configured migration risks. It does not guarantee zero downtime.
 
@@ -55,7 +55,7 @@ npm install --save-dev @subodh001/pg-safe-migrate
 Or execute the published package without installing it in your project:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate --help
 ```
 
 ## Quick start
@@ -118,6 +118,36 @@ For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub A
 | **PG005** | ADD FOREIGN KEY without NOT VALID | Validation may block writes |
 | **PG006** | RENAME | Breaks applications expecting old names |
 
+Additional rule IDs in v2.0.0:
+
+| Rule | Detected pattern | Interpretation |
+|---|---|---|
+| **PG007** | DROP INDEX without CONCURRENTLY | Potential blocking |
+| **PG008** | CONCURRENTLY inside an explicit SQL transaction | PostgreSQL rejects this operation |
+| **PG010** | ADD UNIQUE constraint | Potential blocking index build |
+| **PG011** | DROP TABLE | Destructive change |
+| **PG012** | Validated CHECK constraint | May scan existing rows |
+| **PG013** | SET NOT NULL | Strong lock and potential scan |
+| **PG014** | ADD COLUMN with DEFAULT on PostgreSQL 10 | Version-specific rewrite risk |
+| **PG015** | Prisma CONCURRENTLY | Advisory: check actual runner transaction behavior |
+| **PG016** | Drizzle CONCURRENTLY | Advisory: check actual runner transaction behavior |
+| **PG017** | Cross-file rename/drop dependency | Heuristic advisory |
+
+PG009 is not implemented; rule identifiers are not contiguous. PG015–PG017 default to warnings, including when the standard global severity is `error`. Override an individual advisory with `rules.PG015`, `rules.PG016`, or `rules.PG017` in the configuration. `--fail-on error` only determines the CLI exit threshold, not rule classification.
+
+Example configuration (`pg-safe-migrate.config.json`):
+
+```json
+{
+  "severity": "error",
+  "postgresVersion": 16,
+  "rules": { "PG015": "warning", "PG016": "warning" },
+  "exclude": ["archive"]
+}
+```
+
+Report options: `--format text|json|sarif`, `--output <file>`, `--advisor`, `--postgres-version <major>`, and `--fail-on warning|error|none`.
+
 Each finding includes a description of the risk and a suggested safer migration approach.
 
 A passing result means no configured patterns were detected, not that a migration is guaranteed to be safe.
@@ -141,7 +171,7 @@ For reproducible builds, pin the package to a reviewed version and upgrade delib
 From a clean directory, run:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate --help
 ```
 
 Create a file named `unsafe.sql`:
@@ -153,7 +183,7 @@ CREATE INDEX idx_users_email ON users(email);
 Then execute:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate unsafe.sql
+npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate unsafe.sql
 ```
 
 Expected behavior: PG001 is reported and the CLI exits with code `1`.
@@ -195,13 +225,15 @@ npm pack --dry-run
 
 ## Current release
 
-**v1.1.2**
+**v2.0.0**
 
-- Six PostgreSQL migration risk rules
+- Expanded PostgreSQL migration risk checks and framework advisories
 - PostgreSQL AST-based parsing
 - Prisma and Drizzle migration directory detection
 - Git-diff mode
 - GitHub Actions support
+- JSON/SARIF reports and optional advisor
+- Configurable severity, exclusions, and PostgreSQL-version guidance
 - Actionable migration recommendations
 
 [View npm package](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [View GitHub releases](https://github.com/subodhsingh001/pg-safe-migrate/releases) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
@@ -222,6 +254,10 @@ It does not:
 Some flagged operations may be acceptable under controlled conditions. Some unflagged operations may still cause downtime.
 
 Always consider PostgreSQL version, table size, transaction behavior, lock timeouts, long-running transactions, and application deployment sequencing.
+
+## Validation and real ORM runners
+
+The repository includes a curated SQL regression suite (`test/real-world-cases.test.js`) and opt-in baseline tests using actual Prisma and Drizzle migration runners (`test/orm-runner/README.md`). These do not establish a measured production false-positive rate or prove framework-specific `CONCURRENTLY` support.
 
 ## Contributing
 
