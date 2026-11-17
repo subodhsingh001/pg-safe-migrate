@@ -1,23 +1,35 @@
-# Optional real ORM migration-runner checks
+# Optional real ORM migration verification
 
-The existing PostgreSQL CI jobs execute representative Prisma and Drizzle SQL with `psql`. This directory adds **opt-in checks that invoke actual migration runners**. They require a disposable PostgreSQL database and are not part of `npm test` or the release-verification workflow.
+This integration test runs **actual Prisma Migrate and Drizzle ORM migration runners** against a disposable PostgreSQL database. It is separate from the package's default `npm test` and GitHub Actions workflow.
 
-## Requirements
+## Prerequisites
 
-- Node.js 20+ and npm
-- A running disposable PostgreSQL database with permissions to create tables and schemas
-- Network access to install pinned development dependencies
-- `DATABASE_URL` set to a **disposable database**, never production
+- Node.js and npm
+- Docker with an available local PostgreSQL port, or another **disposable** PostgreSQL database
+- Dependencies installed in `scripts/orm-runner` with `npm install`
+
+## Windows PowerShell
 
 From the repository root:
 
 ```powershell
-cd test/orm-runner
+docker run -d --name pg-safe-orm-test -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=pg_safe_local_test_2026 -e POSTGRES_DB=pg_safe_migrate_test -p 127.0.0.1:55432:5432 postgres:16
+$env:DATABASE_URL = "postgresql://postgres:pg_safe_local_test_2026@127.0.0.1:55432/pg_safe_migrate_test"
+cd scripts/orm-runner
 npm install
-$env:DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/pg_safe_migrate_orm_test'
 npm run verify
 ```
 
-The script creates separate PostgreSQL schemas for Prisma and Drizzle to avoid collisions. It runs a small non-concurrent baseline migration with each runner, checks the resulting tables, and records success. It does **not** prove that either runner supports `CREATE INDEX CONCURRENTLY`; PG015 and PG016 remain advisories until that behavior is verified against the exact framework version and execution strategy used by consumers.
+The Docker container command is for an isolated local test only. If the container already exists, start it with `docker start pg-safe-orm-test` instead of creating another one. Stop and remove it when finished with `docker rm -f pg-safe-orm-test`.
 
-Do not point this script at a production or shared database. Review the fixture SQL before running. Database cleanup is not automatic.
+## Expected checks
+
+1. Prisma applies a baseline table migration.
+2. Prisma applies a **separate** concurrent-index migration and the index exists.
+3. The tested Drizzle node-postgres migrator rejects `CREATE INDEX CONCURRENTLY` inside its transaction with PostgreSQL `25001`.
+4. The rejected Drizzle index is absent.
+5. Temporary database schemas and local temporary files are cleaned up.
+
+`KEEP_TEST_SCHEMAS=1` retains test schemas for inspection; do not set it during normal verification.
+
+**Safety:** This script creates and drops schemas. Run it only against a disposable test database, never a production or shared database. Results depend on the exact Prisma, Drizzle, PostgreSQL, and runner versions installed.

@@ -129,8 +129,8 @@ Additional rule IDs in v2.0.0:
 | **PG012** | Validated CHECK constraint | May scan existing rows |
 | **PG013** | SET NOT NULL | Strong lock and potential scan |
 | **PG014** | ADD COLUMN with DEFAULT on PostgreSQL 10 | Version-specific rewrite risk |
-| **PG015** | Prisma CONCURRENTLY | Advisory: check actual runner transaction behavior |
-| **PG016** | Drizzle CONCURRENTLY | Advisory: check actual runner transaction behavior |
+| **PG015** | Prisma CONCURRENTLY | Advisory: use a standalone migration; verified with Prisma 6.19.x `migrate deploy` |
+| **PG016** | Drizzle CONCURRENTLY | Advisory: tested Drizzle 0.44.x node-postgres migrator wraps migrations in a transaction, preventing this operation |
 | **PG017** | Cross-file rename/drop dependency | Heuristic advisory |
 
 PG009 is not implemented; rule identifiers are not contiguous. PG015–PG017 default to warnings, including when the standard global severity is `error`. Override an individual advisory with `rules.PG015`, `rules.PG016`, or `rules.PG017` in the configuration. `--fail-on error` only determines the CLI exit threshold, not rule classification.
@@ -257,7 +257,7 @@ Always consider PostgreSQL version, table size, transaction behavior, lock timeo
 
 ## Validation and real ORM runners
 
-The repository includes a curated SQL regression suite (`test/real-world-cases.test.js`) and opt-in baseline tests using actual Prisma and Drizzle migration runners (`test/orm-runner/README.md`). These do not establish a measured production false-positive rate or prove framework-specific `CONCURRENTLY` support.
+The repository includes a curated SQL regression suite (`test/real-world-cases.test.js`) and an opt-in integration runner (`scripts/orm-runner/verify.mjs`) using a disposable PostgreSQL database. On 2026-11-17 the maintainer verified that Prisma 6.19.x `migrate deploy` applied a **standalone** `CREATE INDEX CONCURRENTLY` migration; the tested Drizzle ORM 0.44.x node-postgres migrator rejected the same operation inside its transaction with PostgreSQL error `25001`. The runner asserts both outcomes and checks that temporary schemas are cleaned up. See `scripts/orm-runner/README.md` and `RELEASE-VERIFICATION.md`. These observations are version- and runner-specific and do not establish a production false-positive rate.
 
 ## Contributing
 
@@ -269,9 +269,7 @@ Open an issue or submit a pull request on GitHub.
 
 MIT License.
 
-## v2.0 release candidate features
-
-> Development candidate: do not publish until the full test suite and representative PostgreSQL integration tests pass.
+## v2.0 features
 
 - `--postgres-version 10` enables PostgreSQL-10-specific default-column rewrite warnings; version 11+ does not trigger that rule. This is a targeted version check, not complete PostgreSQL-version simulation.
 - `--advisor` gives Prisma/Drizzle/raw-SQL-aware deployment guidance. Recommendations are advisory and do not inspect the live database.

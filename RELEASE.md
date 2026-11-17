@@ -1,15 +1,18 @@
-# Release checklist: v1.1.2 candidate
+# Release checklist: v2.0.0
 
-1. `npm install` (generates `package-lock.json`); commit the lockfile.
-2. `npm test`; all tests must pass.
-3. `node bin/cli.js examples/unsafe.sql` must report PG001 and exit 1.
-4. `node bin/cli.js examples/safe.sql` must exit 0.
-5. `npm pack --dry-run`; review tarball contents.
-6. Create public GitHub repository `subodhsingh001/pg-safe-migrate` if it does not exist. Verify the repo URL in package.json.
-7. `git init` if needed; `git add .`; `git commit -m "Prepare pg-safe-migrate v1.1.2"`; `git branch -M main`; `git remote add origin https://github.com/subodhsingh001/pg-safe-migrate.git` (only if absent); `git push -u origin main`.
-8. Confirm GitHub Actions workflow passes, including a test PR with an unsafe SQL file.
-9. Only after verification: `npm publish --access public`. v1.1.1 is already published; do not try to republish it.
-10. Verify from an unrelated folder with `npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate --help`.
-11. Tag and push `v1.1.2`, then post launch copy from LAUNCH.md.
+Version `2.0.0` is already published according to the maintainer. **Do not publish the same version again.**
 
-Note: this archive is a release candidate; the tests could not be executed in the preparation environment because npm dependency installation timed out. GitHub and npm publishing were not performed.
+## Release verification
+
+1. Confirm `package.json` version is `2.0.0`.
+2. Run `npm ci`, `npm test`, `node test/release-smoke.cjs`, and `npm pack --dry-run` from the project root.
+3. Review the package file list from `npm pack --dry-run` (only intended CLI files should ship).
+4. Confirm GitHub Actions is green on the latest commit.
+5. Check `RELEASE-VERIFICATION.md` for tested PostgreSQL, Prisma, and Drizzle behavior and limitations.
+6. Confirm external installation with `npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate --help`.
+7. Commit documentation and test changes; push to the repository. Test-only/documentation changes do **not** require another npm publish.
+8. If desired, create or verify a `v2.0.0` Git tag pointing at the actual published release commit; do not move an existing tag without deliberate release coordination.
+
+## Future versions
+
+For changes to the published npm package, increment the version, run all checks again, then publish the new version only after reviewing its release contents. See `UPGRADE-NOTES.md` for version-specific guidance.
