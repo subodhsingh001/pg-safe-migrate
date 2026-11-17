@@ -1,0 +1,10 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+const file=process.argv[2];
+const sarif=JSON.parse(fs.readFileSync(file,'utf8'));
+assert.equal(sarif.version,'2.1.0');
+assert.ok(Array.isArray(sarif.runs));
+assert.equal(sarif.runs[0].results.length,1);
+assert.equal(sarif.runs[0].results[0].ruleId,'PG001');
+assert.ok(sarif.runs[0].results[0].locations[0].physicalLocation.region.startLine>0);
+console.log('SARIF structural verification passed.');
