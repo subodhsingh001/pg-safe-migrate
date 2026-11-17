@@ -1,84 +1,232 @@
 # pg-safe-migrate
 
-An AST-based PostgreSQL migration **risk** linter for Prisma, Drizzle, and raw SQL. It flags six common migration patterns that may cause blocking locks or application compatibility failures. **It does not guarantee zero downtime.**
+**Catch risky PostgreSQL migrations before they reach production.**
+
+An open-source, AST-based PostgreSQL migration risk linter for **Prisma, Drizzle, and raw SQL**.
+
+Detect six common migration patterns that may cause blocking database locks or application compatibility problems.
+
+**Features:** PostgreSQL AST parsing · 6 safety rules · Git-diff mode · GitHub Actions · Zero-config migration detection
+
+> **Important:** This tool identifies configured migration risks. It does not guarantee zero downtime.
 
 ## Demo
 
-Catch risky PostgreSQL migrations before deployment.
+See how `pg-safe-migrate` catches an unsafe PostgreSQL migration and suggests a safer alternative.
 
-![pg-safe-migrate CLI demo](assets/pg-safe-migrate-demo.gif)
+![pg-safe-migrate CLI demonstration](assets/pg-safe-migrate-demo.gif)
 
-### Install
+### Example
 
-```bash
-npm install -D @subodh001/pg-safe-migrate
+Unsafe migration:
+
+```sql
+CREATE INDEX idx_users_email ON users(email);
 ```
 
-### Run
+Detected issue:
+
+```text
+[PG001] CREATE INDEX on "users" acquires a SHARE lock and blocks writes.
+
+Fix: Use CREATE INDEX CONCURRENTLY and execute outside a transaction block.
+
+Found 1 blocking migration issue(s).
+```
+
+Safer alternative:
+
+```sql
+CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
+```
+
+`CREATE INDEX CONCURRENTLY` must run outside a transaction block.
+
+## Installation
+
+Install as a development dependency:
+
+```bash
+npm install --save-dev @subodh001/pg-safe-migrate
+```
+
+Or execute the published package without installing it in your project:
+
+```bash
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate --help
+```
+
+## Quick start
+
+### Automatically detect migrations
 
 ```bash
 npx pg-safe-migrate
 ```
 
-## Quick start
+The CLI searches these directories:
 
-```sh
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate --help
-npm install --save-dev @subodh001/pg-safe-migrate
+- `prisma/migrations`
+- `drizzle`
+- `migrations`
+- `db/migrations`
+
+### Prisma
+
+```bash
 npx pg-safe-migrate prisma/migrations
+```
+
+### Drizzle
+
+```bash
 npx pg-safe-migrate drizzle
+```
+
+### Raw SQL
+
+```bash
 npx pg-safe-migrate db/migrations
+```
+
+### Check a specific migration
+
+```bash
+npx pg-safe-migrate path/to/migration.sql
+```
+
+### Check changed migrations only
+
+```bash
 npx pg-safe-migrate --changed origin/main
 ```
 
-The default scan searches `prisma/migrations`, `drizzle`, `migrations`, and `db/migrations`. For any other directory, provide its path. `--changed` without a base checks staged, unstaged and untracked SQL; with a base, it additionally checks branch changes. For pull requests, fetch the base branch first (`fetch-depth: 0` in GitHub Actions).
+Without a base reference, `--changed` checks staged, unstaged, and untracked SQL files. With a base reference, it additionally checks branch changes.
 
-## Rules
+For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub Actions.
 
-| Rule  | Flagged pattern                     | Reason                           |
-| ----- | ----------------------------------- | -------------------------------- |
-| PG001 | CREATE INDEX without CONCURRENTLY   | Blocks writes during index build |
-| PG002 | DROP COLUMN                         | May break old app versions       |
-| PG003 | ALTER COLUMN TYPE                   | Strong lock and possible rewrite |
-| PG004 | ADD COLUMN NOT NULL without DEFAULT | Backfill/compatibility risk      |
-| PG005 | ADD FOREIGN KEY without NOT VALID   | Validation can block writes      |
-| PG006 | RENAME                              | May break old app versions       |
+## PostgreSQL migration rules
 
-A passing result means **no configured patterns were found**, not that a migration is production-safe. Evaluate PostgreSQL version, lock timeout, data volume, long-running transactions, ORM transaction wrapping, and deployment sequencing separately.
+| Rule | Detected pattern | Potential risk |
+|---|---|---|
+| **PG001** | CREATE INDEX without CONCURRENTLY | Blocks writes during index creation |
+| **PG002** | DROP COLUMN | Breaks older application versions |
+| **PG003** | ALTER COLUMN TYPE | Strong locks and possible table rewrites |
+| **PG004** | ADD COLUMN NOT NULL without DEFAULT | Backfill and compatibility risks |
+| **PG005** | ADD FOREIGN KEY without NOT VALID | Validation may block writes |
+| **PG006** | RENAME | Breaks applications expecting old names |
 
-## GitHub Actions
+Each finding includes a description of the risk and a suggested safer migration approach.
 
-Copy [`examples/consumer-workflow.yml`](examples/consumer-workflow.yml) into your application's `.github/workflows/pg-safe-migrate.yml`. It checks SQL files changed in a PR and doesn't require fixing historical migrations. Pin the package to an audited version, and upgrade deliberately.
+A passing result means no configured patterns were detected, not that a migration is guaranteed to be safe.
+
+## GitHub Actions integration
+
+Automatically check migration files during pull requests.
+
+Copy the [example consumer workflow](https://github.com/subodhsingh001/pg-safe-migrate/blob/main/examples/consumer-workflow.yml) into your application's repository:
+
+```text
+.github/workflows/pg-safe-migrate.yml
+```
+
+The workflow checks changed SQL migrations so teams can adopt the linter without immediately rewriting historical migrations.
+
+For reproducible builds, pin the package to a reviewed version and upgrade deliberately.
 
 ## Verify the published CLI
 
-From a clean directory:
+From a clean directory, run:
 
-```sh
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate --help
+```bash
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate --help
 ```
 
-Create `unsafe.sql` containing `CREATE INDEX idx_users_email ON users(email);`, then run:
+Create a file named `unsafe.sql`:
 
-```sh
-npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate unsafe.sql
+```sql
+CREATE INDEX idx_users_email ON users(email);
 ```
 
-Expect `PG001` and exit code 1. The sample `examples/safe.sql` uses `CONCURRENTLY` and should pass PG001; it must run outside a transaction.
+Then execute:
+
+```bash
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.2 pg-safe-migrate unsafe.sql
+```
+
+Expected behavior: PG001 is reported and the CLI exits with code `1`.
+
+The included `examples/safe.sql` demonstrates concurrent index creation and should pass PG001.
 
 ## Development
 
-```sh
-npm install
+Clone the repository:
+
+```bash
+git clone https://github.com/subodhsingh001/pg-safe-migrate.git
+cd pg-safe-migrate
+```
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Run tests:
+
+```bash
 npm test
+```
+
+Test the rule engine:
+
+```bash
 node bin/cli.js test/unsafe_migration.sql
+```
+
+Check the npm package:
+
+```bash
 npm pack --dry-run
 ```
 
-For reproducible CI, commit the generated `package-lock.json` and replace `npm install` in the project's CI with `npm ci`.
+## Current release
+
+**v1.1.2**
+
+- Six PostgreSQL migration risk rules
+- PostgreSQL AST-based parsing
+- Prisma and Drizzle migration directory detection
+- Git-diff mode
+- GitHub Actions support
+- Actionable migration recommendations
+
+[View npm package](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [View GitHub releases](https://github.com/subodhsingh001/pg-safe-migrate/releases) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
 ## Limitations
 
-This is a static AST linter, not a database execution simulator. It does not connect to production, estimate lock wait time, validate migration rollback, or understand the live schema. `--changed` checks changed SQL files, not SQL inside changed JavaScript/TypeScript files. Some flagged operations can be acceptable under controlled conditions, and some unflagged operations can still cause downtime.
+`pg-safe-migrate` is a static AST-based linter, not a migration execution simulator.
 
-MIT licensed. Issues and edge-case reproductions welcome.
+It does not:
+
+- Connect to your production database
+- Estimate actual lock waiting times
+- Validate rollback procedures
+- Inspect live database schemas
+- Guarantee zero downtime
+- Analyze SQL embedded inside changed JavaScript or TypeScript files
+
+Some flagged operations may be acceptable under controlled conditions. Some unflagged operations may still cause downtime.
+
+Always consider PostgreSQL version, table size, transaction behavior, lock timeouts, long-running transactions, and application deployment sequencing.
+
+## Contributing
+
+Contributions, bug reports, PostgreSQL edge cases, and suggestions for additional safety rules are welcome.
+
+Open an issue or submit a pull request on GitHub.
+
+## License
+
+MIT License.
