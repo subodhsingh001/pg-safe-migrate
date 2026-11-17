@@ -3,6 +3,9 @@ import { parseSqlFile } from './parser.js';
 import { lintStatements } from './engine.js';
 import { advise } from './advisor.js';
 
+import { lockFor } from './locks.js';
+import { migrationPlan } from './plans.js';
+
 const ADVISORY_RULES = new Set(['PG015', 'PG016', 'PG017']);
 
 export function position(sql, offset = 0) {
@@ -144,9 +147,7 @@ export async function analyzeFiles(entries, config = {}, options = {}) {
   const seen = new Map();
   const version = config.postgresVersion ?? null;
 
-  const files = [...entries].sort((a, b) =>
-    a.file.localeCompare(b.file)
-  );
+  const files = [...entries].sort((a, b) => a.file.localeCompare(b.file));
 
   for (const { file, sql } of files) {
     const parsed = await parseSqlFile(sql, { details: true });
@@ -178,7 +179,7 @@ export async function analyzeFiles(entries, config = {}, options = {}) {
       if (framework === 'prisma' && concurrently(stmt)) {
         issues.push({
           ruleId: 'PG015',
-          message: 'Verify that the Prisma migration execution path does not wrap CONCURRENTLY in a transaction.',
+          message: 'Prisma: use a standalone migration for CONCURRENTLY; combined SQL statements can fail in a transaction context.',
           fix: 'Review the generated migration and execution strategy; PostgreSQL forbids CONCURRENTLY inside a transaction.'
         });
       }
@@ -186,8 +187,8 @@ export async function analyzeFiles(entries, config = {}, options = {}) {
       if (framework === 'drizzle' && concurrently(stmt)) {
         issues.push({
           ruleId: 'PG016',
-          message: 'Verify the Drizzle migration runner transaction behavior for CONCURRENTLY.',
-          fix: 'Use a non-transactional execution path for concurrent index operations.'
+          message: 'Drizzle node-postgres migrator uses a transaction in the tested version; CONCURRENTLY fails with PostgreSQL 25001.',
+          fix: 'Execute the concurrent index through a separately managed non-transactional path; do not use the standard transactional migrator.'
         });
       }
 
@@ -240,6 +241,7 @@ export async function analyzeFiles(entries, config = {}, options = {}) {
           line: loc.line,
           column: loc.column,
           framework,
+          lock: lockFor(stmt),
           ...(options.advisor
             ? { advisor: advise(issue, framework) }
             : {})

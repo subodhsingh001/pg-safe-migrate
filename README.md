@@ -1,3 +1,5 @@
+> **Development candidate:** v2.1.0. See [MILESTONES.md](MILESTONES.md) for implemented features and explicitly unfinished v2.2/v3.0 work.
+
 > **Current release: v2.0.0.** Static migration risk detection is advisory, not a zero-downtime guarantee. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md) for upgrade details and limitations.
 
 # pg-safe-migrate
@@ -289,3 +291,50 @@ node bin/cli.js --changed origin/main --format sarif --output report.sarif --fai
 ### Known gaps
 
 The analyzer does not connect to PostgreSQL, determine real table sizes, model application compatibility, or prove migrations are safe. Prisma and Drizzle transaction behavior depends on the actual runner and configuration. SARIF code-scanning upload is optional and needs GitHub security permissions.
+
+### Experimental: read-only database catalog snapshot
+
+The opt-in `--inspect-db` mode returns PostgreSQL major version, approximate table row counts and table sizes as JSON. It **does not execute migrations** or assess production safety. Install the optional `pg` dependency in your project and provide a least-privilege connection URL:
+
+```powershell
+npm install pg
+$env:DATABASE_URL = 'postgresql://readonly_user:password@127.0.0.1:5432/testdb'
+node bin/cli.js --inspect-db
+```
+
+This mode uses a read-only transaction, catalog queries, a five-second statement timeout and a 50-table default limit. Do not use privileged production credentials. Real-database integration testing remains outstanding.
+
+### Experimental disposable PostgreSQL simulation
+
+To check whether a SQL migration executes against an **empty disposable PostgreSQL database** (requires local Docker and a locally available PostgreSQL image):
+
+```sh
+node bin/cli.js --simulate examples/safe.sql --postgres-version 16
+node bin/cli.js --simulate examples/unsafe.sql --postgres-version 16 --simulate-timeout 60
+```
+
+The simulator launches a new `postgres:14` through `postgres:18` container, disables its network, limits memory/CPU/processes, does not mount host files or use `DATABASE_URL`, runs SQL via `docker exec -i`, and forcibly removes the container afterward. Docker images may be downloaded automatically. **Do not use it as a sandbox for hostile code:** Docker isolation is not a hardened security boundary. Run only migrations from trusted contributors, preferably on a dedicated CI runner. Simulation against an empty database cannot predict production locks, data-dependent failures, rollback success, or downtime. It never runs against a real database. A nonzero exit code indicates SQL execution failure (1) or a tool/runtime error (2).
+
+### Docker simulator with baseline and ordered migrations (experimental)
+
+The simulator starts a disposable PostgreSQL container without published ports or external networking.
+Use a baseline to create tables that a migration expects:
+
+```cmd
+node bin/cli.js --simulate examples/safe.sql --baseline examples/baseline.sql --postgres-version 16
+node bin/cli.js --simulate examples/unsafe.sql --baseline examples/baseline.sql --postgres-version 16
+```
+
+Run all top-level `.sql` files in a folder in lexicographic filename order:
+
+```cmd
+node bin/cli.js --migrations-dir path/to/migrations --baseline examples/baseline.sql --postgres-version 16
+```
+
+Each JSON result contains a `steps` array with distinct `baseline` and `migration` stages. Execution stops on the first failure, and the disposable container is removed. This is a functional smoke test, **not** a guarantee of production safety, downtime, data preservation, or rollback. A successful `unsafe.sql` simulation does not mean the migration is safe.
+
+The directory mode processes only top-level `.sql` files (maximum 100); nested ORM-specific migration directories are not automatically traversed.
+
+## Consolidated experimental development capabilities
+
+See [ALL-MILESTONES-TESTING.md](ALL-MILESTONES-TESTING.md) for exact commands and verification limitations. `--assess` combines lint findings, lock classifications, heuristic risk score, deployment advice, Docker execution, optional `--verify-sql` assertions, and optional `--team-policy` checks. The Docker matrix script covers PostgreSQL 14–18 when Docker is available. `vscode-extension/` is a local VS Code extension prototype; team policy is a local JSON configuration, **not** a hosted team management service.

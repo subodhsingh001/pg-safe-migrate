@@ -1,0 +1,9 @@
+.vscode/**
+*.vsix
+build-standalone.cjs
+node_modules/**
+**/.git/**
+**/test/**
+**/tests/**
+**/*.map
+runtime/package-lock.json

@@ -1,6 +1,6 @@
 {
   "name": "@subodh001/pg-safe-migrate",
-  "version": "2.0.0",
+  "version": "2.2.0",
   "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
   "type": "module",
   "bin": {
@@ -9,7 +9,9 @@
   "scripts": {
     "test": "node --test",
     "lint": "node bin/cli.js",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "test:release": "node --test && node test/release-smoke.cjs",
+    "test:unit": "node --test test/*.test.js test/*.cjs"
   },
   "keywords": [
     "postgresql",
@@ -34,7 +36,14 @@
     "bin/",
     "src/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "examples/",
+    "scripts/test-pg-matrix.cjs",
+    "scripts/orm-runner/verify.mjs",
+    "scripts/orm-runner/package.json",
+    "scripts/orm-runner/package-lock.json",
+    "scripts/orm-runner/README.md",
+    "ALL-MILESTONES-TESTING.md"
   ],
   "repository": {
     "type": "git",

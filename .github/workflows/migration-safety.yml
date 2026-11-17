@@ -1,0 +1,29 @@
+name: Migration safety
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  lint-migrations:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Migration analysis
+        if: hashFiles('prisma/migrations/**/*.sql', 'drizzle/**/*.sql', 'migrations/**/*.sql', 'db/migrations/**/*.sql') != ''
+        run: |
+          node bin/cli.js --preset recommended --github --format sarif --output migration-results.sarif --fail-on none
+          node bin/cli.js --preset recommended --summary "$GITHUB_STEP_SUMMARY" --format text --fail-on error
+      - name: Upload SARIF
+        if: always() && hashFiles('migration-results.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: migration-results.sarif

@@ -1,0 +1,52 @@
+{
+  "name": "@subodh001/pg-safe-migrate",
+  "version": "2.2.0",
+  "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
+  "type": "module",
+  "bin": {
+    "pg-safe-migrate": "bin/cli.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "node bin/cli.js",
+    "pack:check": "npm pack --dry-run",
+    "test:release": "node --test && node test/release-smoke.cjs",
+    "test:unit": "node --test test/*.test.js test/*.cjs"
+  },
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "migration",
+    "linter",
+    "prisma",
+    "drizzle",
+    "zero-downtime",
+    "ast"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "libpg-query": "^16.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "LICENSE",
+    "examples/",
+    "scripts/",
+    "ALL-MILESTONES-TESTING.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/subodhsingh001/pg-safe-migrate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/subodhsingh001/pg-safe-migrate/issues"
+  },
+  "homepage": "https://github.com/subodhsingh001/pg-safe-migrate#readme"
+}

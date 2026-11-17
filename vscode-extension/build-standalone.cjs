@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+// Build a self-contained VS Code extension runtime from the sibling CLI project.
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const root = path.resolve(__dirname, '..');
+const target = path.join(__dirname, 'runtime');
+const copy = (from, to) => fs.cpSync(from, to, { recursive: true, force: true });
+for (const p of ['bin', 'src', 'package.json', 'package-lock.json']) {
+  if (!fs.existsSync(path.join(root, p))) throw new Error(`Missing ${p} in main project`);
+}
+fs.rmSync(target, { recursive: true, force: true });
+fs.mkdirSync(target, { recursive: true });
+for (const p of ['bin', 'src', 'package.json', 'package-lock.json']) copy(path.join(root, p), path.join(target, p));
+// npm ci installs locked production dependencies (including the PostgreSQL parser).
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const result = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], {
+  cwd: target, stdio: 'inherit', shell: process.platform === 'win32'
+});
+if (result.error) throw result.error;
+if (result.status !== 0) process.exit(result.status || 1);
+for (const p of ['bin/cli.js', 'src/analysis.js', 'node_modules/libpg-query/package.json', 'node_modules/commander/package.json', 'node_modules/chalk/package.json']) {
+  if (!fs.existsSync(path.join(target, p))) throw new Error(`Standalone runtime incomplete: ${p}`);
+}
+console.log(`Standalone runtime ready: ${target}`);

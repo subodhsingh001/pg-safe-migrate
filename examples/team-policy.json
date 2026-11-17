@@ -1,0 +1,7 @@
+{
+  "name": "example-team",
+  "maxRiskScore": 80,
+  "maxWarnings": 10,
+  "blockedRules": ["PG001", "PG002"],
+  "requireSimulation": true
+}

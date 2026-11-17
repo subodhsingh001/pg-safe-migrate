@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "postgresVersion": 16,
+  "execution": {
+    "passed": true,
+    "postgresVersion": 16,
+    "isolated": true,
+    "disposable": true,
+    "stage": "verification",
+    "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\verify.sql",
+    "stdout": "DO\n",
+    "stderr": "",
+    "exitCode": 0,
+    "steps": [
+      {
+        "stage": "baseline",
+        "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\baseline.sql",
+        "passed": true,
+        "stdout": "CREATE TABLE\nINSERT 0 1\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      {
+        "stage": "migration",
+        "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\migrations\\001_add_phone.sql",
+        "passed": true,
+        "stdout": "ALTER TABLE\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      {
+        "stage": "migration",
+        "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\migrations\\002_add_email_index.sql",
+        "passed": true,
+        "stdout": "CREATE INDEX\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      {
+        "stage": "verification",
+        "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\verify.sql",
+        "passed": true,
+        "stdout": "DO\n",
+        "stderr": "",
+        "exitCode": 0
+      }
+    ],
+    "limitation": "Checks SQL execution against an empty disposable database plus optional baseline; not a downtime, production-data, or rollback guarantee."
+  },
+  "lint": {
+    "findings": [],
+    "count": 0,
+    "risk": {
+      "score": 0,
+      "band": "low",
+      "confidence": "low",
+      "basis": "Heuristic severity counts only; no database statistics or production workload context."
+    }
+  },
+  "operations": [
+    {
+      "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\migrations\\001_add_phone.sql",
+      "type": "AlterTableStmt",
+      "lock": {
+        "mode": "ACCESS EXCLUSIVE",
+        "confidence": "heuristic",
+        "note": "May block readers/writers; exact mode varies by subcommand."
+      }
+    },
+    {
+      "file": "C:\\subodh\\pg-safe-migrate-fixed\\pg-safe-migrate\\examples\\migrations\\002_add_email_index.sql",
+      "type": "IndexStmt",
+      "lock": {
+        "mode": "SHARE UPDATE EXCLUSIVE",
+        "confidence": "heuristic",
+        "note": "Concurrent index builds still acquire locks and can wait."
+      }
+    }
+  ],
+  "safetyNote": "No lint findings does not mean no locks or downtime risk; review operations and production workload.",
+  "recommendation": "Execution succeeded with no configured findings; this is not a downtime guarantee.",
+  "passed": true,
+  "confidence": "limited: disposable database and heuristic linting cannot establish production safety",
+  "teamPolicy": {
+    "name": "example-team",
+    "passed": true,
+    "reasons": []
+  }
+}

@@ -1,0 +1,34 @@
+PG SAFE MIGRATE - PERMANENT MATRIX TEST FIX
+
+1. Extract this ZIP into your EXISTING project root:
+   C:\subodh\pg-safe-migrate-fixed\pg-safe-migrate
+   Allow replacement of scripts\test-pg-matrix.cjs.
+   The two safe SQL fixtures will be added under test\fixtures\pg-matrix\migrations.
+
+2. The original examples\migrations\test-unsafe.sql can remain in place.
+   The matrix test now uses only its dedicated fixtures, not examples\migrations.
+   A strict fixture allowlist prevents accidentally adding destructive SQL to the successful matrix.
+
+3. In Windows CMD or PowerShell, from the project root:
+   npm test
+   npm pack --dry-run
+   cd vscode-extension
+   npm run verify:standalone
+   npx @vscode/vsce ls --no-dependencies
+
+4. Before release:
+   - Confirm 56 tests pass, including all five PostgreSQL versions.
+   - Review package contents, LICENSE, README, package metadata, and no secrets.
+   - Confirm CLI package name/version is available on npm; npm whoami.
+   - Confirm VS Code publisher ownership and Marketplace prerequisites.
+   - Commit source, including new fixtures; do not commit node_modules or installers.
+   - Publish only after the above checks and a clean git status.
+
+CLI npm publishing (ONLY after verification):
+   cd C:\subodh\pg-safe-migrate-fixed\pg-safe-migrate
+   npm publish --access public
+
+VS Code Marketplace publishing requires a publisher and credentials;
+DO NOT paste credentials into chat. Use official vsce publishing instructions.
+
+IMPORTANT: No npm, GitHub, or Marketplace publishing has been performed.
