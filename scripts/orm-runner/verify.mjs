@@ -80,7 +80,7 @@ async function verify() {
     );
     drizzleSchemaCreated = true;
 
-    // 2. Prepare Prisma migration.
+    // 2. Prepare Prisma migrations.
     const prismaUrl = new URL(url);
     prismaUrl.searchParams.set('schema', prismaSchema);
 
@@ -89,6 +89,7 @@ async function verify() {
       prismaDir,
       'migrations'
     );
+
     const prismaMigrationDir = path.join(
       prismaMigrationsDir,
       '202611170001_baseline'
@@ -124,9 +125,31 @@ generator client {
       'provider = "postgresql"\n'
     );
 
+    // Prisma migration 1: create the table.
     fs.writeFileSync(
       path.join(prismaMigrationDir, 'migration.sql'),
-      'CREATE TABLE orm_prisma_users (id bigint PRIMARY KEY);\n'
+      `CREATE TABLE orm_prisma_users (
+  id bigint PRIMARY KEY,
+  email text
+);
+`
+    );
+
+    // Prisma migration 2: create the index separately.
+    const prismaIndexMigrationDir = path.join(
+      prismaMigrationsDir,
+      '202611170002_concurrent_index'
+    );
+
+    fs.mkdirSync(prismaIndexMigrationDir, {
+      recursive: true
+    });
+
+    fs.writeFileSync(
+      path.join(prismaIndexMigrationDir, 'migration.sql'),
+      `CREATE INDEX CONCURRENTLY orm_prisma_users_email_idx
+ON orm_prisma_users (email);
+`
     );
 
     // 3. Run the actual Prisma CLI using Node.js.
@@ -161,7 +184,7 @@ generator client {
       }
     );
 
-    // 4. Verify the Prisma table exists.
+    // 4. Verify Prisma table and concurrent index.
     const prismaResult = await pool.query(
       'SELECT to_regclass($1) AS name',
       [`${prismaSchema}.orm_prisma_users`]
@@ -173,7 +196,20 @@ generator client {
       );
     }
 
-    console.log('Prisma baseline migration passed.');
+    console.log('PASS: Prisma baseline migration.');
+
+    const prismaIndex = await pool.query(
+      'SELECT to_regclass($1) AS name',
+      [`${prismaSchema}.orm_prisma_users_email_idx`]
+    );
+
+    if (!prismaIndex.rows[0].name) {
+      throw new Error(
+        'Prisma concurrent index was not created.'
+      );
+    }
+
+    console.log('PASS: Prisma concurrent index created.');
 
     // 5. Prepare Drizzle migration.
     const drizzleFolder = path.join(root, 'drizzle');
@@ -188,7 +224,14 @@ generator client {
 
     fs.writeFileSync(
       path.join(drizzleFolder, '0000_baseline.sql'),
-      `CREATE TABLE ${quote(drizzleSchema)}.orm_drizzle_users (id bigint PRIMARY KEY);\n`
+      `CREATE TABLE ${quote(drizzleSchema)}.orm_drizzle_users (
+  id bigint PRIMARY KEY,
+  email text
+);
+--> statement-breakpoint
+CREATE INDEX CONCURRENTLY orm_drizzle_users_email_idx
+ON ${quote(drizzleSchema)}.orm_drizzle_users (email);
+`
     );
 
     fs.writeFileSync(
@@ -212,33 +255,72 @@ generator client {
       )
     );
 
-    // 6. Run the actual Drizzle migrator.
-    console.log('\nRunning Drizzle ORM migrator...');
+    // 6. Verify Drizzle's transaction restriction.
+    console.log(
+      '\nTesting Drizzle concurrent-index restriction...'
+    );
 
     const db = drizzle(pool);
 
-    await migrate(db, {
-      migrationsFolder: drizzleFolder,
-      migrationsSchema: drizzleSchema,
-      migrationsTable: '__drizzle_migrations'
-    });
+    let drizzleRejectedConcurrentIndex = false;
 
-    // 7. Verify the Drizzle table exists.
-    const drizzleResult = await pool.query(
-      'SELECT to_regclass($1) AS name',
-      [`${drizzleSchema}.orm_drizzle_users`]
-    );
+    try {
+      await migrate(db, {
+        migrationsFolder: drizzleFolder,
+        migrationsSchema: drizzleSchema,
+        migrationsTable: '__drizzle_migrations'
+      });
+    } catch (error) {
+      // Drizzle wraps the underlying PostgreSQL error.
+      let cause = error;
 
-    if (!drizzleResult.rows[0].name) {
+      while (cause?.cause) {
+        cause = cause.cause;
+      }
+
+      if (cause?.code === '25001') {
+        drizzleRejectedConcurrentIndex = true;
+
+        console.log(
+          'PASS: Drizzle migrator rejected CREATE INDEX CONCURRENTLY inside a transaction (PostgreSQL 25001).'
+        );
+      } else {
+        throw error;
+      }
+    }
+
+    if (!drizzleRejectedConcurrentIndex) {
       throw new Error(
-        'Drizzle migration did not create its table.'
+        'Expected Drizzle migrator to reject the concurrent-index migration, but it succeeded.'
       );
     }
 
-    console.log('Drizzle baseline migration passed.');
+    // 7. Confirm the rejected migration did not create the index.
+    const drizzleIndex = await pool.query(
+      'SELECT to_regclass($1) AS name',
+      [`${drizzleSchema}.orm_drizzle_users_email_idx`]
+    );
+
+    if (drizzleIndex.rows[0].name) {
+      throw new Error(
+        'Drizzle concurrent index unexpectedly exists after migration rejection.'
+      );
+    }
 
     console.log(
-      '\nActual Prisma migrate deploy and Drizzle ORM migrator baseline checks passed.'
+      'PASS: No Drizzle concurrent index was created.'
+    );
+
+    console.log(
+      '\nAll ORM migration verification checks passed.'
+    );
+
+    console.log(
+      'Prisma: standalone concurrent-index migration succeeded.'
+    );
+
+    console.log(
+      'Drizzle: concurrent-index migration was correctly rejected.'
     );
 
     if (process.env.KEEP_TEST_SCHEMAS === '1') {
@@ -261,7 +343,9 @@ generator client {
           );
         }
 
-        console.log('Temporary database schemas cleaned up.');
+        console.log(
+          'Temporary database schemas cleaned up.'
+        );
       }
     } finally {
       try {
