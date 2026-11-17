@@ -10,7 +10,7 @@ import { getChangedSqlFiles } from '../src/gitDiff.js';
 program
   .name('pg-safe-migrate')
   .description('Deterministic AST linter for zero-downtime PostgreSQL migrations')
-  .version('1.1.1')
+  .version('1.1.2')
   .argument('[target]', 'Path to a .sql file or migrations directory')
   .option('-c, --changed [baseBranch]', 'Lint changed SQL files (optionally compare with a base ref)')
   .action(async (target, options) => {

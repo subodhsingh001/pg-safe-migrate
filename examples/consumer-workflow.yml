@@ -1,0 +1,22 @@
+# Copy this to .github/workflows/pg-safe-migrate.yml in your application repository.
+name: Check PostgreSQL migrations
+on:
+  pull_request:
+    paths:
+      - '**/*.sql'
+permissions:
+  contents: read
+jobs:
+  migration-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Lint changed SQL files
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate --changed "origin/$BASE_REF"

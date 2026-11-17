@@ -1,6 +1,6 @@
 {
-  "name": "pg-safe-migrate",
-  "version": "1.1.1",
+  "name": "@subodh001/pg-safe-migrate",
+  "version": "1.1.2",
   "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
   "type": "module",
   "bin": {
@@ -35,5 +35,13 @@
     "src/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/subodhsingh001/pg-safe-migrate.git"
+  },
+  "bugs": {
+    "url": "https://github.com/subodhsingh001/pg-safe-migrate/issues"
+  },
+  "homepage": "https://github.com/subodhsingh001/pg-safe-migrate#readme"
 }

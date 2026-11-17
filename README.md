@@ -1,30 +1,66 @@
 # pg-safe-migrate
 
-AST-based PostgreSQL migration **risk** linter for Prisma, Drizzle and SQL folders. Static checks do **not** guarantee zero downtime. PostgreSQL version, table size, locks, transaction boundaries and deployment order matter.
+An AST-based PostgreSQL migration **risk** linter for Prisma, Drizzle, and raw SQL. It flags six common migration patterns that may cause blocking locks or application compatibility failures. **It does not guarantee zero downtime.**
 
-## Usage
+## Quick start
 
-```bash
-npm install
-npm test
-node bin/cli.js test/unsafe_migration.sql
-node bin/cli.js --changed
-node bin/cli.js --changed origin/main
+```sh
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate --help
+npm install --save-dev @subodh001/pg-safe-migrate
+npx pg-safe-migrate prisma/migrations
+npx pg-safe-migrate drizzle
+npx pg-safe-migrate db/migrations
+npx pg-safe-migrate --changed origin/main
 ```
 
-`--changed` includes staged, unstaged and untracked SQL files; with a base ref it also includes added/modified/renamed SQL files from the branch diff. Fetch the base ref in CI. When no argument is supplied the CLI scans all recognized migration directories.
+The default scan searches `prisma/migrations`, `drizzle`, `migrations`, and `db/migrations`. For any other directory, provide its path. `--changed` without a base checks staged, unstaged and untracked SQL; with a base, it additionally checks branch changes. For pull requests, fetch the base branch first (`fetch-depth: 0` in GitHub Actions).
 
 ## Rules
 
-- PG001: CREATE INDEX without CONCURRENTLY (blocks writes)
-- PG002: DROP COLUMN (application compatibility)
-- PG003: ALTER COLUMN TYPE (locking/rewrite risk, depending on change)
-- PG004: ADD NOT NULL column without DEFAULT (backfill/deployment risk)
-- PG005: ADD FOREIGN KEY without NOT VALID (validation lock risk)
-- PG006: RENAME (application compatibility)
+| Rule | Flagged pattern | Reason |
+| --- | --- | --- |
+| PG001 | CREATE INDEX without CONCURRENTLY | Blocks writes during index build |
+| PG002 | DROP COLUMN | May break old app versions |
+| PG003 | ALTER COLUMN TYPE | Strong lock and possible rewrite |
+| PG004 | ADD COLUMN NOT NULL without DEFAULT | Backfill/compatibility risk |
+| PG005 | ADD FOREIGN KEY without NOT VALID | Validation can block writes |
+| PG006 | RENAME | May break old app versions |
 
-Exit code 1 indicates issues or an error; 0 means no configured issues detected. Review changes with a DBA before production use. Some safe migration sequences still require lock_timeout, retries, explicit nontransactional execution and coordination across app versions.
+A passing result means **no configured patterns were found**, not that a migration is production-safe. Evaluate PostgreSQL version, lock timeout, data volume, long-running transactions, ORM transaction wrapping, and deployment sequencing separately.
 
-## Publishing
+## GitHub Actions
 
-Set the repository URL in package.json, then run `npm ci && npm test && npm pack --dry-run`. Confirm the npm package name is available and publish only after reviewing the package contents.
+Copy [`examples/consumer-workflow.yml`](examples/consumer-workflow.yml) into your application's `.github/workflows/pg-safe-migrate.yml`. It checks SQL files changed in a PR and doesn't require fixing historical migrations. Pin the package to an audited version, and upgrade deliberately.
+
+## Verify the published CLI
+
+From a clean directory:
+
+```sh
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate --help
+```
+
+Create `unsafe.sql` containing `CREATE INDEX idx_users_email ON users(email);`, then run:
+
+```sh
+npx --yes --package=@subodh001/pg-safe-migrate@1.1.1 pg-safe-migrate unsafe.sql
+```
+
+Expect `PG001` and exit code 1. The sample `examples/safe.sql` uses `CONCURRENTLY` and should pass PG001; it must run outside a transaction.
+
+## Development
+
+```sh
+npm install
+npm test
+node bin/cli.js test/unsafe_migration.sql
+npm pack --dry-run
+```
+
+For reproducible CI, commit the generated `package-lock.json` and replace `npm install` in the project's CI with `npm ci`.
+
+## Limitations
+
+This is a static AST linter, not a database execution simulator. It does not connect to production, estimate lock wait time, validate migration rollback, or understand the live schema. `--changed` checks changed SQL files, not SQL inside changed JavaScript/TypeScript files. Some flagged operations can be acceptable under controlled conditions, and some unflagged operations can still cause downtime.
+
+MIT licensed. Issues and edge-case reproductions welcome.

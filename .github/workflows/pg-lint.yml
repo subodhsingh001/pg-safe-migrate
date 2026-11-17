@@ -3,12 +3,18 @@ on:
   pull_request:
     paths:
       - '**/*.sql'
-      - '*.sql'
       - 'package.json'
+      - 'package-lock.json'
       - 'src/**'
       - 'bin/**'
+      - 'test/**'
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
-  lint-migrations:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - name: Check changed SQL migrations
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Run tests
+        run: npm test
+      - name: Check changed SQL migrations (pull requests)
+        if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: node bin/cli.js --changed "origin/$BASE_REF"
