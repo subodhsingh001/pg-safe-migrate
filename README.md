@@ -2,6 +2,24 @@
 
 An AST-based PostgreSQL migration **risk** linter for Prisma, Drizzle, and raw SQL. It flags six common migration patterns that may cause blocking locks or application compatibility failures. **It does not guarantee zero downtime.**
 
+## Demo
+
+Catch risky PostgreSQL migrations before deployment.
+
+![pg-safe-migrate CLI demo](assets/pg-safe-migrate-demo.gif)
+
+### Install
+
+```bash
+npm install -D @subodh001/pg-safe-migrate
+```
+
+### Run
+
+```bash
+npx pg-safe-migrate
+```
+
 ## Quick start
 
 ```sh
@@ -17,14 +35,14 @@ The default scan searches `prisma/migrations`, `drizzle`, `migrations`, and `db/
 
 ## Rules
 
-| Rule | Flagged pattern | Reason |
-| --- | --- | --- |
-| PG001 | CREATE INDEX without CONCURRENTLY | Blocks writes during index build |
-| PG002 | DROP COLUMN | May break old app versions |
-| PG003 | ALTER COLUMN TYPE | Strong lock and possible rewrite |
-| PG004 | ADD COLUMN NOT NULL without DEFAULT | Backfill/compatibility risk |
-| PG005 | ADD FOREIGN KEY without NOT VALID | Validation can block writes |
-| PG006 | RENAME | May break old app versions |
+| Rule  | Flagged pattern                     | Reason                           |
+| ----- | ----------------------------------- | -------------------------------- |
+| PG001 | CREATE INDEX without CONCURRENTLY   | Blocks writes during index build |
+| PG002 | DROP COLUMN                         | May break old app versions       |
+| PG003 | ALTER COLUMN TYPE                   | Strong lock and possible rewrite |
+| PG004 | ADD COLUMN NOT NULL without DEFAULT | Backfill/compatibility risk      |
+| PG005 | ADD FOREIGN KEY without NOT VALID   | Validation can block writes      |
+| PG006 | RENAME                              | May break old app versions       |
 
 A passing result means **no configured patterns were found**, not that a migration is production-safe. Evaluate PostgreSQL version, lock timeout, data volume, long-running transactions, ORM transaction wrapping, and deployment sequencing separately.
 
