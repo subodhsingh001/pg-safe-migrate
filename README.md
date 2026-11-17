@@ -1,3 +1,5 @@
+> **Development notice:** This checkout is a v2.0.0-rc.1 candidate, not the published v1.1.2. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md) for implemented features and unverified limitations.
+
 # pg-safe-migrate
 
 **Catch risky PostgreSQL migrations before they reach production.**
@@ -230,3 +232,26 @@ Open an issue or submit a pull request on GitHub.
 ## License
 
 MIT License.
+
+## v2.0 release candidate features
+
+> Development candidate: do not publish until the full test suite and representative PostgreSQL integration tests pass.
+
+- `--postgres-version 10` enables PostgreSQL-10-specific default-column rewrite warnings; version 11+ does not trigger that rule. This is a targeted version check, not complete PostgreSQL-version simulation.
+- `--advisor` gives Prisma/Drizzle/raw-SQL-aware deployment guidance. Recommendations are advisory and do not inspect the live database.
+- Cross-file analysis checks files in lexicographic order and warns on selected operations involving tables changed earlier. This is a heuristic, not a dependency graph.
+- Transaction analysis uses parsed SQL statements, avoiding comment/string false positives from keyword matching. It cannot know whether an external ORM runner wraps a migration in a transaction.
+- JSON and SARIF outputs include source locations when the PostgreSQL parser supplies statement offsets.
+- `examples/consumer-workflow.yml` illustrates GitHub code-scanning SARIF upload and policy enforcement. GitHub code-scanning availability and permissions depend on repository settings and plan.
+
+### Examples
+
+```bash
+node bin/cli.js prisma/migrations --postgres-version 16 --advisor
+node bin/cli.js db/migrations --format json --output report.json
+node bin/cli.js --changed origin/main --format sarif --output report.sarif --fail-on none
+```
+
+### Known gaps
+
+The analyzer does not connect to PostgreSQL, determine real table sizes, model application compatibility, or prove migrations are safe. Prisma and Drizzle transaction behavior depends on the actual runner and configuration. SARIF code-scanning upload is optional and needs GitHub security permissions.

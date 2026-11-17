@@ -1,3 +1,4 @@
+import { additionalRules } from './rules/additionalRules.js';
 import { concurrentIndexRule } from './rules/concurrentIndex.js';
 import { dropColumnRule } from './rules/dropColumn.js';
 import { alterTableRules, renameRule } from './rules/alterTableRules.js';
@@ -6,7 +7,8 @@ const ACTIVE_RULES = [
   concurrentIndexRule,
   dropColumnRule,
   alterTableRules,
-  renameRule
+  renameRule,
+  additionalRules
 ];
 
 export function lintStatements(stmts) {
