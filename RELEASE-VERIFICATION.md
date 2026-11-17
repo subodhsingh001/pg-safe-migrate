@@ -5,7 +5,7 @@
 - Package version: `@subodh001/pg-safe-migrate@2.0.0` (maintainer reports published and externally installed).
 - GitHub Actions: **passed**, as reported by the maintainer on 2026-11-17. This document does not embed the underlying CI run log.
 - Real PostgreSQL 16 integration: **passed**, as shown by the maintainer's `npm run verify` output on 2026-11-17.
-- Final local `npm test`, `node test/release-smoke.cjs`, and `npm pack --dry-run` on this updated archive: **not independently confirmed**. Re-run after extracting and installing dependencies.
+- Internal archive validation (2026-11-17): **all JavaScript syntax checks passed** and `npm pack --dry-run --json` succeeded with **16 files**. Full `npm test` and `node test/release-smoke.cjs` **could not be run** here because `npm ci` could not retrieve `libpg-query@16.8.3` (npm registry DNS/network unavailable). Re-run on a machine with dependencies installed.
 
 ## Verified ORM behavior
 
@@ -45,3 +45,7 @@ To rerun the real ORM integration tests, see `scripts/orm-runner/README.md`. Use
 ## Limitations
 
 These checks do not prove zero downtime, exhaustively cover PostgreSQL DDL, measure real-world false-positive rates, or validate every ORM version or runner configuration.
+
+## Archive validation limitations
+
+The downloadable source archive excludes `node_modules` and the repository `.git` directory. It is not a substitute for a Git clone, and this archive does not contain `.github/workflows`; retain the workflows already present in your GitHub repository when copying the updated source. No remote Git push or npm publish was performed by the internal validation environment.
