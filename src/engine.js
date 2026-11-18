@@ -1,3 +1,4 @@
+
 import { additionalRules } from './rules/additionalRules.js';
 import { concurrentIndexRule } from './rules/concurrentIndex.js';
 import { dropColumnRule } from './rules/dropColumn.js';
@@ -19,16 +20,29 @@ const ACTIVE_RULES = [
 
 export function lintStatements(stmts, context = {}) {
   const violations = [];
+
   for (const stmt of stmts) {
+    const findings = [];
+
     for (const rule of ACTIVE_RULES) {
       const result = rule.check(stmt, context);
       if (!result) continue;
+
       if (Array.isArray(result)) {
-        violations.push(...result);
+        findings.push(...result);
       } else {
-        violations.push(result);
+        findings.push(result);
       }
     }
+
+    // PG025 provides more specific guidance for SET NOT NULL.
+    // Suppress PG013 only for this statement when PG025 exists.
+    const hasPG025 = findings.some(f => f.ruleId === 'PG025');
+
+    violations.push(
+      ...findings.filter(f => !(hasPG025 && f.ruleId === 'PG013'))
+    );
   }
+
   return violations;
 }

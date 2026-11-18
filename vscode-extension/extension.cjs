@@ -1,3 +1,4 @@
+
 const vscode = require('vscode');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -6,176 +7,489 @@ const fs = require('node:fs');
 const timers = new Map();
 const running = new Map();
 const lastFindings = new Map();
+
 let collection;
 let output;
 
 function isSql(document) {
-  return document && document.uri.scheme === 'file' &&
-    (document.languageId === 'sql' || document.fileName.toLowerCase().endsWith('.sql'));
+  return Boolean(
+    document &&
+    document.uri &&
+    document.uri.scheme === 'file' &&
+    (
+      document.languageId === 'sql' ||
+      document.fileName.toLowerCase().endsWith('.sql')
+    )
+  );
 }
+
 function diagnosticsFor(findings, document) {
   return findings.map(f => {
-    const line = Math.min(Math.max(0, Number(f.line || 1) - 1), Math.max(0, document.lineCount - 1));
-    const column = Math.max(0, Number(f.column || 1) - 1);
-    const length = document.lineAt ? document.lineAt(line).text.length : column + 1;
-    const start = Math.min(column, length);
-    const range = new vscode.Range(line, start, line, Math.min(length, start + 1));
-    const severity = String(f.severity || '').toLowerCase() === 'error'
-      ? vscode.DiagnosticSeverity.Error : vscode.DiagnosticSeverity.Warning;
-    const diagnostic = new vscode.Diagnostic(range,
-      `${f.ruleId}: ${f.message}${f.fix ? `\nFix: ${f.fix}` : ''}`, severity);
+    const lineCount = Math.max(1, Number(document.lineCount) || 1);
+
+    const rawLine = Number(f.line);
+    const line = Number.isFinite(rawLine) && rawLine >= 1
+      ? Math.min(Math.floor(rawLine) - 1, lineCount - 1)
+      : 0;
+
+    // Support both real VS Code documents and test mocks.
+    const lineText = typeof document.lineAt === 'function'
+      ? String(document.lineAt(line).text || '')
+      : '';
+
+    const rawColumn = Number(f.column);
+
+    let startColumn = Number.isFinite(rawColumn) && rawColumn >= 1
+      ? Math.floor(rawColumn) - 1
+      : 0;
+
+    if (typeof document.lineAt === 'function') {
+      startColumn = Math.min(startColumn, lineText.length);
+
+      if (startColumn >= lineText.length && lineText.length > 0) {
+        startColumn = lineText.length - 1;
+      }
+    }
+
+    const token = /^[A-Za-z_][A-Za-z_0-9]*/.exec(
+      lineText.slice(startColumn)
+    );
+
+    const endColumn = token
+      ? startColumn + token[0].length
+      : startColumn + 1;
+
+    const range = new vscode.Range(
+      line,
+      startColumn,
+      line,
+      Math.max(startColumn + 1, endColumn)
+    );
+
+    const severity =
+      String(f.severity || '').toLowerCase() === 'error'
+        ? vscode.DiagnosticSeverity.Error
+        : vscode.DiagnosticSeverity.Warning;
+
+    const diagnostic = new vscode.Diagnostic(
+      range,
+      `${f.ruleId}: ${f.message}${f.fix ? `\nFix: ${f.fix}` : ''}`,
+      severity
+    );
+
     diagnostic.source = 'pg-safe-migrate';
     diagnostic.code = f.ruleId;
+
     return diagnostic;
   });
 }
+
 function findCli(documentPath) {
   const candidates = [
     path.join(__dirname, 'runtime', 'bin', 'cli.js'),
     path.resolve(__dirname, '..', 'bin', 'cli.js')
   ];
+
   let current = path.dirname(documentPath);
+
   while (true) {
     candidates.push(path.join(current, 'bin', 'cli.js'));
+
     const parent = path.dirname(current);
     if (parent === current) break;
+
     current = parent;
   }
+
   return candidates.find(file => fs.existsSync(file));
 }
+
 function settings() {
   return vscode.workspace.getConfiguration('pgSafeMigrate');
 }
+
 function cancel(uri) {
   const key = uri.toString();
-  if (timers.has(key)) clearTimeout(timers.get(key));
+
+  if (timers.has(key)) {
+    clearTimeout(timers.get(key));
+  }
+
   timers.delete(key);
+
   const processInfo = running.get(key);
+
   if (processInfo) {
     processInfo.cancelled = true;
-    processInfo.child.kill();
     running.delete(key);
+
+    try {
+      processInfo.child.kill();
+    } catch {
+      // Process may already have exited.
+    }
   }
 }
+
 function lint(document, interactive = false) {
   if (!isSql(document)) return;
+
   const key = document.uri.toString();
+
   cancel(document.uri);
+
   const cli = findCli(document.uri.fsPath);
+
   if (!cli) {
-    if (interactive) vscode.window.showErrorMessage('PG Safe Migrate runtime not found. Rebuild the standalone VSIX or configure a project CLI.');
+    const message =
+      'PG Safe Migrate runtime not found. Rebuild the standalone VSIX or configure a project CLI.';
+
     output.appendLine(`CLI not found for ${document.uri.fsPath}`);
+
+    if (interactive) {
+      vscode.window.showErrorMessage(message);
+    }
+
     return;
   }
+
   const nodePath = settings().get('nodePath', 'node') || 'node';
-  const args = [cli, '--format', 'json', '--fail-on', 'none', document.uri.fsPath];
+
+  const args = [
+    cli,
+    '--format',
+    'json',
+    '--fail-on',
+    'none',
+    document.uri.fsPath
+  ];
+
+  const documentVersion = document.version;
+
   output.appendLine(`Linting: ${document.uri.fsPath}`);
   output.appendLine(`CLI: ${cli}`);
-  const child = spawn(nodePath, args, {
-    cwd: path.dirname(path.dirname(cli)), shell: false, windowsHide: true,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-  });
-  const task = { child, cancelled: false };
+
+  let child;
+
+  try {
+    child = spawn(nodePath, args, {
+      cwd: path.dirname(path.dirname(cli)),
+      shell: false,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: '1'
+      }
+    });
+  } catch (err) {
+    output.appendLine(`Node launch error: ${err.message}`);
+
+    if (interactive) {
+      vscode.window.showErrorMessage(
+        `PG Safe Migrate: ${err.message}`
+      );
+    }
+
+    return;
+  }
+
+  const task = {
+    child,
+    cancelled: false
+  };
+
   running.set(key, task);
+
   let stdout = '';
   let stderr = '';
   let spawnFailed = false;
-  child.stdout.on('data', chunk => { stdout += chunk.toString(); });
-  child.stderr.on('data', chunk => { stderr += chunk.toString(); });
+
+  child.stdout.on('data', chunk => {
+    stdout += chunk.toString();
+  });
+
+  child.stderr.on('data', chunk => {
+    stderr += chunk.toString();
+  });
+
   child.on('error', err => {
     spawnFailed = true;
+
     if (!task.cancelled) {
       output.appendLine(`Node launch error: ${err.message}`);
-      if (interactive) vscode.window.showErrorMessage(`PG Safe Migrate: ${err.message}`);
+
+      if (interactive) {
+        vscode.window.showErrorMessage(
+          `PG Safe Migrate: ${err.message}`
+        );
+      }
     }
   });
+
   child.on('close', code => {
-    if (running.get(key) === task) running.delete(key);
-    if (task.cancelled || spawnFailed) return;
+    // Ignore cancelled, failed or superseded lint processes.
+    if (
+      task.cancelled ||
+      spawnFailed ||
+      running.get(key) !== task
+    ) {
+      return;
+    }
+
+    running.delete(key);
+
     output.appendLine(`Exit code: ${code}`);
-    if (stderr.trim()) output.appendLine(`stderr: ${stderr.trim()}`);
+
+    if (stderr.trim()) {
+      output.appendLine(`stderr: ${stderr.trim()}`);
+    }
+
     try {
-      if (!stdout.trim()) throw new Error(`CLI returned no JSON (exit ${code}). ${stderr.trim()}`);
+      if (!stdout.trim()) {
+        throw new Error(
+          `CLI returned no JSON (exit ${code}). ${stderr.trim()}`
+        );
+      }
+
       const report = JSON.parse(stdout);
-      const findings = Array.isArray(report) ? report : report.findings;
-      if (!Array.isArray(findings)) throw new Error('CLI JSON has no findings array');
-      if (code !== 0) output.appendLine(`CLI returned findings with exit code ${code}`);
-      // Never publish stale diagnostics after the document changes.
-      if (document.isDirty) return;
+
+      const findings = Array.isArray(report)
+        ? report
+        : report.findings;
+
+      if (!Array.isArray(findings)) {
+        throw new Error('CLI JSON has no findings array');
+      }
+
+      if (code !== 0) {
+        output.appendLine(
+          `CLI returned findings with exit code ${code}`
+        );
+      }
+
+      // Never publish diagnostics from an outdated document.
+      if (
+        document.isClosed ||
+        document.isDirty ||
+        document.version !== documentVersion
+      ) {
+        return;
+      }
+
       lastFindings.set(key, findings);
-      collection.set(document.uri, diagnosticsFor(findings, document));
-      const errors = findings.filter(f => String(f.severity).toLowerCase() === 'error').length;
-      output.appendLine(`Findings: ${findings.length}; errors: ${errors}`);
-      if (interactive) vscode.window.showInformationMessage(`PG Safe Migrate: ${findings.length} finding(s), ${errors} error(s).`);
+
+      collection.set(
+        document.uri,
+        diagnosticsFor(findings, document)
+      );
+
+      const errors = findings.filter(
+        f => String(f.severity).toLowerCase() === 'error'
+      ).length;
+
+      output.appendLine(
+        `Findings: ${findings.length}; errors: ${errors}`
+      );
+
+      if (interactive) {
+        vscode.window.showInformationMessage(
+          `PG Safe Migrate: ${findings.length} finding(s), ${errors} error(s).`
+        );
+      }
     } catch (err) {
       output.appendLine(`Lint failed: ${err.message}`);
+
       if (interactive) {
         output.show(true);
-        vscode.window.showErrorMessage(`PG Safe Migrate: ${err.message}`);
+
+        vscode.window.showErrorMessage(
+          `PG Safe Migrate: ${err.message}`
+        );
       }
     }
   });
 }
+
 function schedule(document) {
-  if (!isSql(document) || !settings().get('autoLint', true)) return;
+  if (!isSql(document)) return;
+
   cancel(document.uri);
-  // CLI reads the on-disk file, so lint only saved content. Unsaved edits are linted on save.
+
+  if (!settings().get('autoLint', true)) return;
+
+  // CLI reads the saved file, not unsaved editor content.
   if (document.isDirty) return;
-  const delay = Math.max(100, settings().get('debounceMs', 350));
+
+  const delay = Math.max(
+    100,
+    settings().get('debounceMs', 350)
+  );
+
   const key = document.uri.toString();
+
   timers.set(key, setTimeout(() => {
     timers.delete(key);
     lint(document);
   }, delay));
 }
+
 function activate(context) {
-  collection = vscode.languages.createDiagnosticCollection('pg-safe-migrate');
-  output = vscode.window.createOutputChannel('PG Safe Migrate');
+  collection = vscode.languages.createDiagnosticCollection(
+    'pg-safe-migrate'
+  );
+
+  output = vscode.window.createOutputChannel(
+    'PG Safe Migrate'
+  );
+
   context.subscriptions.push(collection, output);
-  context.subscriptions.push(vscode.commands.registerCommand('pgSafeMigrate.lintFile', async () => {
-    const document = vscode.window.activeTextEditor?.document;
-    if (!isSql(document)) return vscode.window.showWarningMessage('Open an SQL file first.');
-    if (!await document.save()) return vscode.window.showErrorMessage('Save the SQL file before linting.');
-    lint(document, true);
-  }));
-  context.subscriptions.push(vscode.commands.registerCommand('pgSafeMigrate.showGuidance', (message) => {
-    vscode.window.showInformationMessage(message, { modal: true });
-  }));
-  context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(schedule));
-  context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(schedule));
-  context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(document => {
-    cancel(document.uri);
-    lastFindings.delete(document.uri.toString());
-    collection.delete(document.uri);
-  }));
-  context.subscriptions.push(vscode.workspace.onDidChangeTextDocument(event => {
-    if (isSql(event.document)) {
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'pgSafeMigrate.lintFile',
+      async () => {
+        const document =
+          vscode.window.activeTextEditor?.document;
+
+        if (!isSql(document)) {
+          return vscode.window.showWarningMessage(
+            'Open an SQL file first.'
+          );
+        }
+
+        if (!await document.save()) {
+          return vscode.window.showErrorMessage(
+            'Save the SQL file before linting.'
+          );
+        }
+
+        lint(document, true);
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'pgSafeMigrate.showGuidance',
+      message => {
+        vscode.window.showInformationMessage(
+          message,
+          { modal: true }
+        );
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(schedule)
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(schedule)
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument(document => {
+      cancel(document.uri);
+
+      const key = document.uri.toString();
+
+      lastFindings.delete(key);
+      collection.delete(document.uri);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(event => {
+      if (!isSql(event.document)) return;
+
       cancel(event.document.uri);
-      // Existing diagnostics may be stale until the next save.
+
       collection.delete(event.document.uri);
       lastFindings.delete(event.document.uri.toString());
+    })
+  );
+
+  const provider = vscode.languages.registerCodeActionsProvider(
+    {
+      language: 'sql',
+      scheme: 'file'
+    },
+    {
+      provideCodeActions(document, range, context) {
+        const findings =
+          lastFindings.get(document.uri.toString()) || [];
+
+        return context.diagnostics
+          .filter(
+            d =>
+              d.source === 'pg-safe-migrate' &&
+              d.code
+          )
+          .map(d => {
+            const finding = findings.find(f =>
+              f.ruleId === d.code &&
+              Number(f.line || 1) ===
+                d.range.start.line + 1
+            );
+
+            if (!finding || !finding.fix) {
+              return null;
+            }
+
+            const action = new vscode.CodeAction(
+              `PG Safe Migrate: Show guidance for ${d.code}`,
+              vscode.CodeActionKind.QuickFix
+            );
+
+            action.diagnostics = [d];
+
+            action.command = {
+              command: 'pgSafeMigrate.showGuidance',
+              title: 'Show safe migration guidance',
+              arguments: [finding.fix]
+            };
+
+            return action;
+          })
+          .filter(Boolean);
+      }
+    },
+    {
+      providedCodeActionKinds: [
+        vscode.CodeActionKind.QuickFix
+      ]
     }
-  }));
-  const provider = vscode.languages.registerCodeActionsProvider({ language: 'sql', scheme: 'file' }, {
-    provideCodeActions(document, range, context) {
-      const findings = lastFindings.get(document.uri.toString()) || [];
-      return context.diagnostics.filter(d => d.source === 'pg-safe-migrate' && d.code).map(d => {
-        const finding = findings.find(f => f.ruleId === d.code && Number(f.line || 1) === d.range.start.line + 1);
-        if (!finding || !finding.fix) return null;
-        const action = new vscode.CodeAction(`PG Safe Migrate: Show guidance for ${d.code}`, vscode.CodeActionKind.QuickFix);
-        action.diagnostics = [d];
-        action.command = { command: 'pgSafeMigrate.showGuidance', title: 'Show safe migration guidance', arguments: [finding.fix] };
-        return action;
-      }).filter(Boolean);
-    }
-  }, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] });
+  );
+
   context.subscriptions.push(provider);
+
   vscode.workspace.textDocuments.forEach(schedule);
 }
+
 function deactivate() {
-  for (const key of timers.keys()) clearTimeout(timers.get(key));
+  for (const timer of timers.values()) {
+    clearTimeout(timer);
+  }
+
   timers.clear();
-  for (const task of running.values()) { task.cancelled = true; task.child.kill(); }
+
+  for (const task of running.values()) {
+    task.cancelled = true;
+
+    try {
+      task.child.kill();
+    } catch {
+      // Process may already have exited.
+    }
+  }
+
   running.clear();
 }
-module.exports = { activate, deactivate, diagnosticsFor, findCli };
+
+module.exports = {
+  activate,
+  deactivate,
+  diagnosticsFor,
+  findCli
+};

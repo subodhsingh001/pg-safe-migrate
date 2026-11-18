@@ -2,7 +2,7 @@
   "name": "pg-safe-migrate-vscode",
   "displayName": "PG Safe Migrate",
   "description": "Standalone PostgreSQL migration linting and safe migration guidance",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -59,5 +59,9 @@
     "build:standalone": "node build-standalone.cjs",
     "package:standalone": "npm run build:standalone && npx @vscode/vsce package --no-dependencies",
     "verify:standalone": "node verify-standalone.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/subodhsingh001/pg-safe-migrate.git"
   }
 }
