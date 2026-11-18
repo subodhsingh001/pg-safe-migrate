@@ -1,22 +1,27 @@
 name: Release verification (v2)
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
-    cross-platform:
+  cross-platform:
     name: Node ${{ matrix.node }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2022]
         node: ['20', '22', '24']
-    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -46,6 +51,7 @@ jobs:
       fail-fast: false
       matrix:
         pg: ['14', '16', '17']
+
     services:
       postgres:
         image: postgres:${{ matrix.pg }}
@@ -60,15 +66,20 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 15
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+
       - run: npm ci --no-audit --no-fund
+
       - name: Install PostgreSQL client
         run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+
       - name: Verify SQL execution and lint decisions
         env:
           PGPASSWORD: integration
@@ -78,29 +89,36 @@ jobs:
           PGDATABASE: integration
           PG_MAJOR: ${{ matrix.pg }}
         run: bash test/integration/run-postgres.sh
+
   sarif:
     name: SARIF generation and optional upload
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
+
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+
       - run: npm ci --no-audit --no-fund
+
       - name: Generate and validate SARIF
         run: |
           node bin/cli.js examples/unsafe.sql --format sarif --output report.sarif --fail-on none
           node test/verify-sarif.cjs report.sarif
+
       - name: Upload SARIF to GitHub code scanning
         id: upload
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: report.sarif
+
       - name: Report upload status
         env:
           OUTCOME: ${{ steps.upload.outcome }}
