@@ -46,7 +46,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      if (!['none','warning','error'].includes(opts.failOn)) throw new Error('fail-on must be none, warning or error');
      const preset = getPreset(opts.preset);
      const userConfig = loadConfig(opts.config);
-     const config = { ...preset, ...userConfig, rules: { ...preset.rules, ...userConfig.rules } }; 
+     const config = { ...preset, ...userConfig, rules: { ...preset.rules, ...userConfig.rules } };
      if(opts.postgresVersion!==undefined) {
        const version=Number(opts.postgresVersion);
        if (!Number.isInteger(version)||version<10||version>99) throw new Error('postgres-version must be an integer >= 10');

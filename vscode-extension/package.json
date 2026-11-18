@@ -9,7 +9,7 @@
     "vscode": "^1.85.0"
   },
   "main": "./extension.cjs",
-  "publisher": "subodh001",
+  "publisher": "sukoaa",
   "activationEvents": [
     "onLanguage:sql",
     "onCommand:pgSafeMigrate.lintFile"

@@ -38,7 +38,11 @@
     "README.md",
     "LICENSE",
     "examples/",
-    "scripts/",
+    "scripts/test-pg-matrix.cjs",
+    "scripts/orm-runner/verify.mjs",
+    "scripts/orm-runner/package.json",
+    "scripts/orm-runner/package-lock.json",
+    "scripts/orm-runner/README.md",
     "ALL-MILESTONES-TESTING.md"
   ],
   "repository": {
