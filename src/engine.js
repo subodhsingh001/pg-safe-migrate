@@ -3,6 +3,7 @@ import { concurrentIndexRule } from './rules/concurrentIndex.js';
 import { dropColumnRule } from './rules/dropColumn.js';
 import { alterTableRules, renameRule } from './rules/alterTableRules.js';
 import { versionRules } from './rules/versionRules.js';
+import { operationalRiskRules } from './rules/operationalRiskRules.js';
 
 const ACTIVE_RULES = [
   concurrentIndexRule,
@@ -10,7 +11,8 @@ const ACTIVE_RULES = [
   alterTableRules,
   renameRule,
   additionalRules,
-  versionRules
+  versionRules,
+  operationalRiskRules
 ];
 
 export function lintStatements(stmts, context = {}) {
