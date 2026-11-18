@@ -164,7 +164,7 @@ export async function analyzeFiles(entries, config = {}, options = {}) {
       }
 
       const issues = [
-        ...lintStatements([stmt]),
+        ...lintStatements([stmt], { postgresVersion: version }),
         ...extras(stmt, version)
       ];
 
