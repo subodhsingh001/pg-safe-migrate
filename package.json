@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "test:unit": "node --test test/*.test.js test/*.test.cjs test/*.cjs",
+    "test:unit": "node scripts/run-unit-tests.cjs",
     "test:integration": "node scripts/test-pg-matrix.cjs",
     "lint": "node bin/cli.js",
     "pack:check": "npm pack --dry-run",
