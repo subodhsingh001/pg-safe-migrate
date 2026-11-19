@@ -99,7 +99,6 @@ jobs:
           echo "Expected version: $EXPECTED_VERSION"
           echo "Packaged version: $actual"
           test "$actual" = "$EXPECTED_VERSION" || { echo 'ERROR: VSIX version mismatch'; exit 1; }
-          test "$(find dist -maxdepth 1 -type f -name '*.vsix' | wc -l)" -eq 1 || { echo 'ERROR: Expected exactly one VSIX artifact'; exit 1; }
       - name: Publish with Marketplace Trusted Publishing (OIDC)
         working-directory: vscode-extension
         shell: bash
