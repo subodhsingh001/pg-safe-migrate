@@ -61,10 +61,33 @@ jobs:
         with:
           name: pg-safe-migrate-vscode-vsix
           path: dist
+      - name: Verify downloaded VSIX version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Release tag: $GITHUB_REF_NAME"
+          find dist -maxdepth 1 -type f -name '*.vsix' -print
+
+          expected="${GITHUB_REF_NAME#vscode-v}"
+
+          for vsix in dist/*.vsix; do
+            actual="$(unzip -p "$vsix" extension/package.json | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>console.log(JSON.parse(s).version))")"
+
+            echo "VSIX: $vsix"
+            echo "Expected version: $expected"
+            echo "Actual version: $actual"
+
+            test "$actual" = "$expected" || {
+              echo "ERROR: VSIX version does not match release tag"
+              exit 1
+            }
+          done
       - name: Publish with Marketplace Trusted Publishing (OIDC)
         shell: bash
         run: |
           set -euo pipefail
-          VSIX="$(find dist -maxdepth 1 -name '*.vsix' -type f -print -quit)"
+          expected="${GITHUB_REF_NAME#vscode-v}"
+          VSIX="dist/pg-safe-migrate-vscode-${expected}.vsix"
           test -n "$VSIX" || { echo 'No VSIX artifact found'; exit 1; }
           npx --yes @vscode/vsce@4.1.1 publish --oidc --packagePath "$VSIX"
