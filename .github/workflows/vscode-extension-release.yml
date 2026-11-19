@@ -37,7 +37,7 @@ jobs:
 
       - name: Package extension
         working-directory: vscode-extension
-        run: npx --yes @vscode/vsce@4.0.2 package --no-dependencies
+        run: npx --yes @vscode/vsce@4.1.1 package --no-dependencies
 
       - name: Upload release candidate
         uses: actions/upload-artifact@v4
@@ -73,4 +73,4 @@ jobs:
         run: |
           VSIX=$(find dist -maxdepth 1 -name '*.vsix' -type f -print -quit)
           test -n "$VSIX"
-          npx --yes @vscode/vsce@4.0.2 publish --oidc --packagePath "$VSIX"
+          npx --yes @vscode/vsce@4.1.1 publish --oidc --packagePath "$VSIX"
