@@ -1,0 +1,43 @@
+name: VS Code extension release candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'vscode-v*'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install CLI dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run CLI and diagnostics regression tests
+        run: npm run test:unit
+      - name: Build standalone VS Code extension
+        working-directory: vscode-extension
+        run: npm run build:standalone
+      - name: Verify standalone runtime
+        working-directory: vscode-extension
+        run: npm run verify:standalone
+      - name: Package extension
+        working-directory: vscode-extension
+        run: npx --yes @vscode/vsce package --no-dependencies
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-safe-migrate-vscode-vsix
+          path: vscode-extension/*.vsix
+          if-no-files-found: error
+
+# Publication intentionally requires manual approval/upload until the publisher's
+# Trusted Publishing configuration and exact supported vsce OIDC flow are verified.
+# Do not add a long-lived PAT to repository secrets.

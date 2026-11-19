@@ -35,13 +35,27 @@ npm run package:standalone
 
 ## Install locally
 
-In VS Code, open **Extensions → ... → Install from VSIX** and select the generated `pg-safe-migrate-vscode-0.3.0.vsix`.
+In VS Code, open **Extensions → ... → Install from VSIX** and select the generated `pg-safe-migrate-vscode-0.4.0.vsix`.
 
 Open any `.sql` file, enter `DROP TABLE users;`, save it, and check **Problems** for PG011. Check the lightbulb guidance as well.
 
 ## Before Marketplace publication
 
-Verify the publisher `subodh001` is owned by your Marketplace account; inspect VSIX contents, install in a fresh VS Code profile, and confirm the extension README and license are accurate. Marketplace publication requires separate authentication.
+Verify the publisher `sukoaa` is owned by your Marketplace account; inspect VSIX contents, install in a fresh VS Code profile, and confirm the extension README and license are accurate. Marketplace publication requires separate authentication.
+
+## Example: migration diagnostics
+
+```sql
+TRUNCATE TABLE customers;                 -- PG023: destructive TRUNCATE
+ALTER TABLE users ALTER COLUMN email SET NOT NULL; -- PG025: validate/backfill first
+ALTER TABLE orders DROP CONSTRAINT orders_customer_id_fkey; -- PG024: integrity risk
+```
+
+PG025 supersedes the older PG013 warning for the same `SET NOT NULL` statement. Diagnostics point to the beginning of the relevant SQL statement. The tool does **not** execute migrations or apply fixes automatically.
+
+## Release workflow
+
+GitHub Actions `VS Code extension release candidate` builds and uploads a verified VSIX artifact on manual dispatch or a `vscode-v*` tag. This is **not** automatic Marketplace publication. Download the artifact and update the existing extension under publisher `sukoaa` until Trusted Publishing has been configured and tested. See `../TRUSTED-PUBLISHING-SETUP.md`.
 
 ## Safety limitations
 

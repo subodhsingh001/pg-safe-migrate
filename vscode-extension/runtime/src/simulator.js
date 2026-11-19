@@ -58,13 +58,33 @@ export function simulateSqlFile(file, {
     created = true;
     let ready = false;
     for (let attempt = 0; attempt < 30; attempt++) {
-      const result = call(['exec', name, 'pg_isready', '-U', 'postgres'], { timeout: 5000 });
+      const result = call([
+        'exec', name,
+        'pg_isready',
+        '-h', '127.0.0.1',
+        '-p', '5432',
+        '-U', 'postgres',
+        '-d', 'postgres'
+      ], { timeout: 5000 });
       if (result.status === 0) { ready = true; break; }
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
     }
     if (!ready) throw new Error('Disposable PostgreSQL did not become ready within 30 seconds');
     const execute = (step, stage) => {
-      const result = call(['exec', '-i', name, 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres', '-d', 'postgres', '-f', '-'], { input: step.sql, timeout: timeoutSeconds * 1000 });
+      const result = call([
+        'exec', '-i', name,
+        'psql',
+        '-h', '127.0.0.1',
+        '-p', '5432',
+        '-X',
+        '-v', 'ON_ERROR_STOP=1',
+        '-U', 'postgres',
+        '-d', 'postgres',
+        '-f', '-'
+      ], {
+        input: step.sql,
+        timeout: timeoutSeconds * 1000
+      });
       return {
         stage, file: step.file, passed: result.status === 0,
         stdout: (result.stdout || '').slice(-4000), stderr: (result.stderr || '').slice(-4000),

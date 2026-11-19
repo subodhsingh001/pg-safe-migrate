@@ -7,3 +7,6 @@ node_modules/**
 **/tests/**
 **/*.map
 runtime/package-lock.json
+migration-test.sql
+verify-standalone.cjs
+STANDALONE-INSTALL.md
