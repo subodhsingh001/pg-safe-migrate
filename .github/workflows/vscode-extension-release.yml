@@ -84,10 +84,27 @@ jobs:
             }
           done
       - name: Publish with Marketplace Trusted Publishing (OIDC)
+        working-directory: vscode-extension
         shell: bash
         run: |
           set -euo pipefail
+
           expected="${GITHUB_REF_NAME#vscode-v}"
-          VSIX="dist/pg-safe-migrate-vscode-${expected}.vsix"
-          test -n "$VSIX" || { echo 'No VSIX artifact found'; exit 1; }
+          VSIX="../dist/pg-safe-migrate-vscode-${expected}.vsix"
+
+          test -f "$VSIX" || {
+            echo "ERROR: Expected VSIX not found: $VSIX"
+            exit 1
+          }
+
+          actual="$(unzip -p "$VSIX" extension/package.json | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>console.log(JSON.parse(s).version))")"
+
+          echo "Expected version: $expected"
+          echo "Packaged version: $actual"
+
+          test "$actual" = "$expected" || {
+            echo "ERROR: VSIX version mismatch"
+            exit 1
+          }
+
           npx --yes @vscode/vsce@4.1.1 publish --oidc --packagePath "$VSIX"
