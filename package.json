@@ -1,6 +1,6 @@
 {
   "name": "@subodh001/pg-safe-migrate",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
   "type": "module",
   "bin": {
