@@ -159,6 +159,7 @@ function lint(document, interactive = false) {
     cli,
     '--format',
     'json',
+    '--advisor',
     '--fail-on',
     'none',
     document.uri.fsPath
@@ -371,11 +372,35 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'pgSafeMigrate.showGuidance',
-      message => {
-        vscode.window.showInformationMessage(
-          message,
-          { modal: true }
+      async guidance => {
+        if (!guidance || typeof guidance !== 'object') return;
+        const alternative = guidance.alternative;
+        const preview = [
+          '-- PG Safe Migrate: advisory preview only; not an executable migration.',
+          '-- This preview is separate from your original SQL file.',
+          `-- Rule: ${String(guidance.ruleId || 'migration safety')}`,
+          ...((guidance.steps || []).map((step, index) => `-- ${index + 1}. ${String(step).replace(/\r?\n/g, ' ')}`)),
+          ...(guidance.note ? [`-- ${String(guidance.note).replace(/\r?\n/g, ' ')}`] : []),
+          ...(alternative?.title ? [`-- Suggested approach: ${String(alternative.title).replace(/\r?\n/g, ' ')}`] : []),
+          '',
+          alternative?.sql || '-- No general-purpose SQL rewrite is safe for this operation.',
+          '',
+          ...(alternative?.caveat ? [`-- Caveat: ${String(alternative.caveat).replace(/\r?\n/g, ' ')}`] : []),
+          '-- Never execute this preview without reviewing and adapting it.'
+        ].join('\n');
+        const choices = ['Open separate SQL preview'];
+        if (alternative?.sql) choices.push('Copy example SQL');
+        const choice = await vscode.window.showInformationMessage(
+          'PG Safe Migrate guidance is advisory. Open a separate preview to inspect it; your migration will not be modified.',
+          ...choices
         );
+        if (choice === 'Open separate SQL preview') {
+          const previewDocument = await vscode.workspace.openTextDocument({ language: 'sql', content: preview });
+          await vscode.window.showTextDocument(previewDocument, { preview: true, preserveFocus: false });
+        } else if (choice === 'Copy example SQL' && alternative?.sql) {
+          await vscode.env.clipboard.writeText(alternative.sql);
+          vscode.window.showInformationMessage('PG Safe Migrate: example SQL copied. Review before use.');
+        }
       }
     )
   );
@@ -421,35 +446,33 @@ function activate(context) {
           lastFindings.get(document.uri.toString()) || [];
 
         return context.diagnostics
-          .filter(
-            d =>
-              d.source === 'pg-safe-migrate' &&
-              d.code
-          )
+          .filter(d => d.source === 'pg-safe-migrate' && d.code)
           .map(d => {
             const finding = findings.find(f =>
               f.ruleId === d.code &&
-              Number(f.line || 1) ===
-                d.range.start.line + 1
+              Number(f.line || 1) === d.range.start.line + 1 &&
+              Number(f.column || 1) - 1 === d.range.start.character
+            ) || findings.find(f =>
+              f.ruleId === d.code &&
+              Number(f.line || 1) === d.range.start.line + 1
             );
-
-            if (!finding || !finding.fix) {
-              return null;
-            }
-
+            if (!finding) return null;
+            const guidance = finding.advisor || {
+              steps: [finding.fix || finding.message],
+              note: 'Review this migration in staging before deployment.',
+              alternative: null
+            };
             const action = new vscode.CodeAction(
-              `PG Safe Migrate: Show guidance for ${d.code}`,
+              `PG Safe Migrate: View safe migration guidance (${d.code})`,
               vscode.CodeActionKind.QuickFix
             );
-
             action.diagnostics = [d];
-
             action.command = {
               command: 'pgSafeMigrate.showGuidance',
-              title: 'Show safe migration guidance',
-              arguments: [finding.fix]
+              title: 'View safe migration guidance',
+              arguments: [guidance]
             };
-
+            // Intentionally no WorkspaceEdit: a template is not a safe automatic fix.
             return action;
           })
           .filter(Boolean);

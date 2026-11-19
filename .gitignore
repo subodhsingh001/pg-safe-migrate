@@ -8,3 +8,10 @@ coverage/
 *.sarif
 *.zip
 *.vsix
+day6-test.sql
+day6-validation/
+day6-validation-report.md
+migration-report.md
+release-report.json
+release-report.md
+*.vsix

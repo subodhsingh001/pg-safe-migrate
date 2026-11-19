@@ -13,7 +13,7 @@ import { findMigrationFiles } from '../src/detector.js';
 import { getChangedSqlFiles } from '../src/gitDiff.js';
 import { loadConfig, isExcluded } from '../src/config.js';
 import { analyzeFiles } from '../src/analysis.js';
-import { toJson, toSarif } from '../src/reports.js';
+import { toJson, toSarif, toMarkdownReport } from '../src/reports.js';
 import { inspectDatabaseUrl } from '../src/db-inspect.js';
 import { simulateSqlFile } from '../src/simulator.js';
 import { combinedAssessment } from '../src/combined.js';
@@ -22,7 +22,7 @@ import { loadTeamPolicy, assessTeamPolicy } from '../src/team-policy.js';
 program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk linter (not a downtime guarantee)').version(version)
  .argument('[target]', 'SQL file or migrations directory')
  .option('-c, --changed [baseBranch]', 'Lint changed SQL files')
- .option('--format <format>', 'text, json or sarif', 'text')
+ .option('--format <format>', 'text, json, sarif or markdown', 'text')
  .option('--output <file>', 'Write report to file')
  .option('--config <file>', 'JSON configuration file', 'pg-safe-migrate.config.json')
  .option('--postgres-version <version>', 'Target PostgreSQL major version')
@@ -42,7 +42,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
  .option('--inspect-db', 'Inspect database catalog (requires DATABASE_URL and optional pg dependency)')
  .action(async (target,opts)=>{
    try {
-     if (!['text','json','sarif'].includes(opts.format)) throw new Error('format must be text, json or sarif');
+     if (!['text','json','sarif','markdown'].includes(opts.format)) throw new Error('format must be text, json, sarif or markdown');
      if (!['none','warning','error'].includes(opts.failOn)) throw new Error('fail-on must be none, warning or error');
      const preset = getPreset(opts.preset);
      const userConfig = loadConfig(opts.config);
@@ -77,7 +77,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      const findings=await analyzeFiles(entries,config,{advisor:opts.advisor});
      if (opts.github) process.stdout.write(toGitHubAnnotations(findings));
      if (opts.summary) {fs.mkdirSync(path.dirname(path.resolve(opts.summary)),{recursive:true});fs.writeFileSync(opts.summary,toMarkdownSummary(findings,files.length));}
-     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion}):opts.format==='sarif'?toSarif(findings):[
+     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion}):opts.format==='sarif'?toSarif(findings):opts.format==='markdown'?toMarkdownReport(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,risk:opts.risk?summarizeRisk(findings):undefined}):[
        ...findings.flatMap(f=>[`${f.file}:${f.line}:${f.column} [${f.ruleId}] ${f.severity}: ${f.message}`,`  Fix: ${f.fix}`,...(f.advisor?f.advisor.steps.map((s,i)=>`  ${i+1}. ${s}`):[])]),
        ...(opts.risk?[`Risk: ${JSON.stringify(summarizeRisk(findings))}`]:[]),
        `Checked ${files.length} SQL file(s); found ${findings.length} configured risk(s). No downtime guarantee.`

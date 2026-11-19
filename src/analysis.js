@@ -27,7 +27,7 @@ export function position(sql, offset = 0) {
 }
 
 export function frameworkFor(file) {
-  const p = file.replaceAll('\\', '/');
+  const p = file.replaceAll('\\', '/').toLowerCase();
 
   if (/(^|\/)prisma\/migrations\//.test(p)) {
     return 'prisma';
@@ -35,6 +35,10 @@ export function frameworkFor(file) {
 
   if (/(^|\/)drizzle\//.test(p)) {
     return 'drizzle';
+  }
+
+  if (/(^|\/)(?:sql\/)?(?:migrations\/)?(?:v[0-9][a-z0-9_.-]*__[^/]+|r__[^/]+)\.sql$/.test(p) || /(^|\/)db\/migration\/[^/]+\.sql$/.test(p)) {
+    return 'flyway';
   }
 
   return 'sql';
@@ -253,6 +257,17 @@ export async function analyzeFiles(
             'Drizzle node-postgres migrator uses a transaction in the tested version; CONCURRENTLY fails with PostgreSQL 25001.',
           fix:
             'Execute the concurrent index through a separately managed non-transactional path; do not use the standard transactional migrator.'
+        });
+      }
+
+      // Flyway PostgreSQL migrations are normally transactional, unless the
+      // deployment configuration opts out. This is advice, not a claim about
+      // the actual runner's settings. Avoid inventing a new rule identifier.
+      if (framework === 'flyway' && concurrently(stmt)) {
+        issues.push({
+          ruleId: 'PG017',
+          message: 'Flyway: CONCURRENTLY requires non-transactional execution; verify executeInTransaction=false for this migration.',
+          fix: 'Configure this migration for non-transactional execution, review mixed statements, and verify Flyway edition/version behavior.'
         });
       }
 

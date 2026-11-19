@@ -45,7 +45,7 @@ export async function combinedAssessment({ file, migrationsDir, baseline, postgr
   const simulation = duplicate
     ? { passed: false, skipped: true, reason: 'Duplicate index definitions detected before simulation', steps: [] }
     : simulateSqlFile(file, { migrationsDir, baseline, postgresVersion, run, verifySql });
-  const risk = summarizeRisk(findings);
+  const risk = summarizeRisk(findings, { operations });
   return {
     schemaVersion: 1, postgresVersion: Number(postgresVersion),
     execution: simulation, lint: { findings, count: findings.length, risk }, operations,

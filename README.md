@@ -338,3 +338,7 @@ The directory mode processes only top-level `.sql` files (maximum 100); nested O
 ## Consolidated experimental development capabilities
 
 See [ALL-MILESTONES-TESTING.md](ALL-MILESTONES-TESTING.md) for exact commands and verification limitations. `--assess` combines lint findings, lock classifications, heuristic risk score, deployment advice, Docker execution, optional `--verify-sql` assertions, and optional `--team-policy` checks. The Docker matrix script covers PostgreSQL 14–18 when Docker is available. `vscode-extension/` is a local VS Code extension prototype; team policy is a local JSON configuration, **not** a hosted team management service.
+
+## Markdown migration report (Week 2 Day 6)
+
+Run `pg-safe-migrate migrations --format markdown --risk --output migration-report.md` to generate an actionable Markdown report with rule IDs, locations, recommended actions, and an optional heuristic risk breakdown. This does not predict production downtime.

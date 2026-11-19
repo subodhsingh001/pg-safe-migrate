@@ -18,7 +18,7 @@ export function findMigrationFiles(targetPath) {
     }
     return scan(targetPath).sort();
   }
-  const dirs = ['prisma/migrations', 'drizzle', 'migrations', 'db/migrations'];
+  const dirs = ['prisma/migrations', 'drizzle', 'migrations', 'db/migrations', 'db/migration', 'sql/migrations', 'sql'];
   const files = [...new Set(dirs.filter(d => fs.existsSync(d) && fs.statSync(d).isDirectory()).flatMap(scan))].sort();
   if (!files.length) throw new Error('No SQL migrations found. Supply a file or directory.');
   return files;
