@@ -2,7 +2,7 @@
   "name": "pg-safe-migrate-vscode",
   "displayName": "PG Safe Migrate",
   "description": "Find risky PostgreSQL SQL migrations in VS Code with lock warnings, risk analysis and safer migration guidance",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "license": "MIT",
   "engines": {

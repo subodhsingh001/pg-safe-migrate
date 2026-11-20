@@ -1,7 +1,2 @@
-TRUNCATE TABLE customers;
-
-ALTER TABLE users
-ALTER COLUMN email SET NOT NULL;
-
-ALTER TABLE orders
-DROP CONSTRAINT orders_customer_id_fkey;
+CREATE INDEX idx_users_email ON users(email);
+ALTER TABLE users DROP COLUMN phone;
