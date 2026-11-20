@@ -1,0 +1,65 @@
+name: PG Safe Migrate PR safety report
+on:
+  pull_request:
+    paths:
+      - '**/*.sql'
+      - 'src/**'
+      - 'bin/**'
+      - 'scripts/week3-pr-summary.mjs'
+      - 'examples/week3-*.json'
+      - '.github/workflows/week3-pr-safety.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  migration-risk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Analyze changed SQL and apply gate
+        id: analyze
+        shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          args=(--format json --fail-on none --gate-policy examples/week3-gate-policy.json)
+          if [ -f examples/reviewed-risk-baseline.json ]; then
+            args+=(--risk-baseline examples/reviewed-risk-baseline.json)
+          fi
+          if [ -f examples/week3-production-context.json ]; then
+            args+=(--production-context examples/week3-production-context.json)
+          fi
+          if [ "${{ github.event_name }}" = 'pull_request' ]; then
+            git fetch --no-tags origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            args+=(--changed "origin/${BASE_REF}")
+          fi
+          node bin/cli.js "${args[@]}" --output "$RUNNER_TEMP/pg-safe-migrate-pr.json"
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publish workflow summary
+        if: always()
+        env:
+          REPORT_PATH: ${{ runner.temp }}/pg-safe-migrate-pr.json
+          ANALYSIS_STATUS: ${{ steps.analyze.outputs.status }}
+        run: node scripts/week3-pr-summary.mjs
+      - name: Enforce migration gate
+        if: always()
+        shell: bash
+        env:
+          ANALYSIS_STATUS: ${{ steps.analyze.outputs.status }}
+        run: |
+          if [ -z "$ANALYSIS_STATUS" ]; then
+            echo 'Analysis did not produce an exit status.' >&2
+            exit 2
+          fi
+          exit "$ANALYSIS_STATUS"
