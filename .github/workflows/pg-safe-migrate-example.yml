@@ -14,4 +14,4 @@ jobs:
           node-version: '22'
       - run: npm install --no-save --ignore-scripts @subodh001/pg-safe-migrate@2.4.0
       - name: Check migration safety policy
-        run: npx pg-safe-migrate db/migrations --gate-policy examples/week3-gate-policy.json --format markdown --output migration-report.md
+	run: node bin/cli.js migrations --gate-policy examples/week3-gate-policy.json --format markdown --output migration-report.md

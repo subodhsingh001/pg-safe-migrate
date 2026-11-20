@@ -12,7 +12,15 @@ const checks = [];
 function check(name, ok, detail = '') { checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` - ${detail}` : ''}`); }
 function file(path) { return existsSync(resolve(root, path)); }
 function command(name, cmd, args, cwd = root) {
-  const result = spawnSync(cmd, args, { cwd, encoding: 'utf8', shell: process.platform === 'win32' && cmd === 'npm', timeout: 180000 });
+  // Windows npm is a .cmd shim; invoke it through cmd.exe with fixed, trusted arguments.
+  // Never concatenate user-provided input into this command line.
+  const windowsNpm = process.platform === 'win32' && cmd === 'npm';
+  const allowed = new Set(['run test:unit', 'run test:release', 'pack --dry-run --json']);
+  const npmArgs = args.join(' ');
+  if (windowsNpm && !allowed.has(npmArgs)) throw new Error('Unexpected npm audit command');
+  const executable = windowsNpm ? (process.env.ComSpec || 'cmd.exe') : cmd;
+  const executableArgs = windowsNpm ? ['/d', '/s', '/c', `npm.cmd ${npmArgs}`] : args;
+  const result = spawnSync(executable, executableArgs, { cwd, encoding: 'utf8', shell: false, timeout: 180000 });
   const text = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
   check(name, result.status === 0 && !result.error, result.error?.message || `exit ${result.status ?? 'unknown'}`);
   if (text && result.status !== 0) console.error(text.slice(-2500));
