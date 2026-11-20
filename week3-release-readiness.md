@@ -1,6 +1,6 @@
 # Week 3 release-readiness audit
 
-CLI version: 2.4.0; VS Code version: 0.5.0
+CLI version: 2.5.0; VS Code version: 0.5.0
 
 | Check | Result | Detail |
 |---|---|---|
