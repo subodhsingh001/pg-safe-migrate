@@ -1,6 +1,4 @@
-> **Development candidate:** v2.1.0. See [MILESTONES.md](MILESTONES.md) for implemented features and explicitly unfinished v2.2/v3.0 work.
-
-> **Current release: v2.0.0.** Static migration risk detection is advisory, not a zero-downtime guarantee. See [UPGRADE-NOTES.md](UPGRADE-NOTES.md) for upgrade details and limitations.
+> **Published npm CLI: v2.4.0.** **VS Code extension: v0.5.0.** Week 3 CI gate is a development candidate and is not published yet. Migration analysis does not guarantee zero downtime.
 
 # pg-safe-migrate
 
@@ -46,6 +44,19 @@ CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
 
 `CREATE INDEX CONCURRENTLY` must run outside a transaction block.
 
+
+## Week 3 preview: opt-in CI policy gate (unreleased)
+
+Run a deterministic, policy-driven static lint check in CI:
+
+```bash
+node bin/cli.js db/migrations --gate-policy examples/week3-gate-policy.json --fail-on none
+```
+
+The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This is a **development-only preview**, not available in the published v2.4.0 package. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
+
+[Install from npm](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [Install the VS Code extension](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
+
 ## Installation
 
 Install as a development dependency:
@@ -57,7 +68,7 @@ npm install --save-dev @subodh001/pg-safe-migrate
 Or execute the published package without installing it in your project:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate --help
 ```
 
 ## Quick start
@@ -173,7 +184,7 @@ For reproducible builds, pin the package to a reviewed version and upgrade delib
 From a clean directory, run:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate --help
 ```
 
 Create a file named `unsafe.sql`:

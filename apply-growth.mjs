@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import path from 'node:path';
+const root=process.cwd();
+const cliPath=path.join(root,'package.json');
+const extPath=path.join(root,'vscode-extension','package.json');
+for (const file of [cliPath,extPath]) if(!fs.existsSync(file)) throw new Error(`Missing ${file}; run from repository root`);
+const cli=JSON.parse(fs.readFileSync(cliPath,'utf8'));
+const ext=JSON.parse(fs.readFileSync(extPath,'utf8'));
+if(cli.name!=='@subodh001/pg-safe-migrate'||ext.name!=='pg-safe-migrate-vscode') throw new Error('Unexpected repository: refusing to edit');
+if(cli.version!=='2.4.0'||ext.version!=='0.5.0') throw new Error(`Unexpected versions CLI=${cli.version}, extension=${ext.version}; review before applying`);
+const addKeywords=(pkg,words)=>{pkg.keywords=[...new Set([...(pkg.keywords||[]),...words])];};
+cli.description='Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway';
+addKeywords(cli,['postgresql','database-migration','migration-linter','schema-migration','migration-safety','database-safety','postgres-locks','prisma','drizzle','flyway','zero-downtime','sarif']);
+ext.description='Find risky PostgreSQL SQL migrations in VS Code with lock warnings, risk analysis and safer migration guidance';
+addKeywords(ext,['postgresql','postgres','sql','migration','migration-linter','database-safety','prisma','drizzle','flyway','zero-downtime','locks']);
+fs.writeFileSync(cliPath,JSON.stringify(cli,null,2)+'\n');
+fs.writeFileSync(extPath,JSON.stringify(ext,null,2)+'\n');
+console.log(`Updated metadata without changing release versions: CLI ${cli.version}, VS Code ${ext.version}`);

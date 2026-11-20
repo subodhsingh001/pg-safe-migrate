@@ -1,0 +1,6 @@
+{
+  "name": "pull-request-static-gate",
+  "blockedRules": ["PG001", "PG002", "PG003"],
+  "maxWarnings": 5,
+  "maxRiskScore": 60
+}

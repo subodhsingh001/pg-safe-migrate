@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "tool": "pg-safe-migrate",
+  "fingerprints": [
+    "ee03806a2ea992dae01c0042f8e7498f84ca5fe65f54d7b2dd58177e49cc565c"
+  ]
+}

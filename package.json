@@ -1,7 +1,7 @@
 {
   "name": "@subodh001/pg-safe-migrate",
   "version": "2.4.0",
-  "description": "PostgreSQL AST migration risk linter for Prisma, Drizzle and SQL",
+  "description": "Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway",
   "type": "module",
   "bin": {
     "pg-safe-migrate": "bin/cli.js"
@@ -22,7 +22,15 @@
     "prisma",
     "drizzle",
     "zero-downtime",
-    "ast"
+    "ast",
+    "database-migration",
+    "migration-linter",
+    "schema-migration",
+    "migration-safety",
+    "database-safety",
+    "postgres-locks",
+    "flyway",
+    "sarif"
   ],
   "license": "MIT",
   "dependencies": {

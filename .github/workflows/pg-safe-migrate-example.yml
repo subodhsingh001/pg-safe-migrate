@@ -1,0 +1,17 @@
+# Example only. Copy to your consuming application's .github/workflows directory.
+name: PostgreSQL migration safety
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  lint-migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --ignore-scripts @subodh001/pg-safe-migrate@2.4.0
+      - name: Check migration safety policy
+        run: npx pg-safe-migrate db/migrations --gate-policy examples/week3-gate-policy.json --format markdown --output migration-report.md
