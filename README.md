@@ -57,6 +57,14 @@ The gate can block selected `PGxxx` rules, excessive warnings, and heuristic ris
 
 [Install from npm](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [Install the VS Code extension](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
+## Adoption and developer resources (Week 3 candidate)
+
+- [Safe onboarding and CI troubleshooting](docs/ADOPTION-GUIDE.md)
+- [Short demonstration recording script](docs/DEMO-SCRIPT.md)
+- [Proposed npm and VS Code Marketplace copy](docs/MARKETPLACE-COPY.md)
+
+**Release distinction:** The Week 3 policy, baseline, production-context, and PR reporting features are currently source-checkout development features, not part of published npm v2.4.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
+
 ## Installation
 
 Install as a development dependency:
