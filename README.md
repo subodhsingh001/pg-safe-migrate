@@ -1,4 +1,4 @@
-> **Published npm CLI: v2.4.0.** **VS Code extension: v0.5.0.** Week 3 CI gate is a development candidate and is not published yet. Migration analysis does not guarantee zero downtime.
+> **Published npm CLI: v2.5.0.** **VS Code extension: v0.6.0.** Week 3 CI policy gates and risk-baseline features are included in the published CLI. Migration analysis does not guarantee zero downtime.
 
 # pg-safe-migrate
 
@@ -45,7 +45,7 @@ CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
 `CREATE INDEX CONCURRENTLY` must run outside a transaction block.
 
 
-## Week 3 preview: opt-in CI policy gate (unreleased)
+## Week 3: opt-in CI policy gate
 
 Run a deterministic, policy-driven static lint check in CI:
 
@@ -53,17 +53,17 @@ Run a deterministic, policy-driven static lint check in CI:
 node bin/cli.js db/migrations --gate-policy examples/week3-gate-policy.json --fail-on none
 ```
 
-The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This is a **development-only preview**, not available in the published v2.4.0 package. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
+The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This feature is included in the published v2.5.0 CLI. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
 
 [Install from npm](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [Install the VS Code extension](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
-## Adoption and developer resources (Week 3 candidate)
+## Adoption and developer resources
 
 - [Safe onboarding and CI troubleshooting](docs/ADOPTION-GUIDE.md)
 - [Short demonstration recording script](docs/DEMO-SCRIPT.md)
 - [Proposed npm and VS Code Marketplace copy](docs/MARKETPLACE-COPY.md)
 
-**Release distinction:** The Week 3 policy, baseline, production-context, and PR reporting features are currently source-checkout development features, not part of published npm v2.4.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
+**Release note:** The Week 3 policy, baseline, production-context, and PR reporting features are included in published npm v2.5.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
 
 ## Installation
 
@@ -76,7 +76,7 @@ npm install --save-dev @subodh001/pg-safe-migrate
 Or execute the published package without installing it in your project:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate --help
 ```
 
 ## Quick start
@@ -192,7 +192,7 @@ For reproducible builds, pin the package to a reviewed version and upgrade delib
 From a clean directory, run:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate --help
 ```
 
 Create a file named `unsafe.sql`:

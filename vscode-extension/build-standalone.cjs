@@ -13,10 +13,14 @@ fs.rmSync(target, { recursive: true, force: true });
 fs.mkdirSync(target, { recursive: true });
 for (const p of ['bin', 'src', 'package.json', 'package-lock.json']) copy(path.join(root, p), path.join(target, p));
 // npm ci installs locked production dependencies (including the PostgreSQL parser).
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const result = spawnSync(npm, ['ci', '--omit=dev', '--no-audit', '--no-fund'], {
-  cwd: target, stdio: 'inherit', shell: process.platform === 'win32'
-});
+// Windows .cmd files require cmd.exe; avoid spawnSync(args, { shell: true }) (DEP0190).
+// Keep the command fixed: never interpolate untrusted values into shell commands.
+const npmArgs = ['ci', '--omit=dev', '--no-audit', '--no-fund'];
+const result = process.platform === 'win32'
+  ? spawnSync(process.env.ComSpec || 'cmd.exe',
+      ['/d', '/s', '/c', 'npm.cmd ci --omit=dev --no-audit --no-fund'],
+      { cwd: target, stdio: 'inherit', windowsHide: true })
+  : spawnSync('npm', npmArgs, { cwd: target, stdio: 'inherit' });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status || 1);
 for (const p of ['bin/cli.js', 'src/analysis.js', 'node_modules/libpg-query/package.json', 'node_modules/commander/package.json', 'node_modules/chalk/package.json']) {
