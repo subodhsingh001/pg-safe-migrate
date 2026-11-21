@@ -1,17 +1,52 @@
-# Example only. Copy to your consuming application's .github/workflows directory.
+
+# Example workflow for projects using PG Safe Migrate.
+# Copy this file into the consuming project's
+# .github/workflows directory.
+#
+# This example assumes:
+# - SQL migrations are in ./migrations
+# - A gate policy exists at ./pg-safe-migrate-policy.json
+# Adjust both paths for your application.
+
 name: PostgreSQL migration safety
+
 on:
   pull_request:
+  workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   lint-migrations:
-    runs-on: ubuntu-latest
+    name: Check PostgreSQL migrations
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          node-version: '22'
-      - run: npm install --no-save --ignore-scripts @subodh001/pg-safe-migrate@2.4.0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install PG Safe Migrate
+        run: npm install --no-save @subodh001/pg-safe-migrate@2.5.0
+
       - name: Check migration safety policy
-	run: node bin/cli.js migrations --gate-policy examples/week3-gate-policy.json --format markdown --output migration-report.md
+        run: |
+          npx --no-install pg-safe-migrate migrations \
+            --gate-policy pg-safe-migrate-policy.json \
+            --format markdown \
+            --output migration-report.md
+
+      - name: Upload migration report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-safety-report
+          path: migration-report.md
+          if-no-files-found: warn
