@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        pg: ['14', '16', '17']
+        pg: ['14', '15', '16', '17', '18']
 
     services:
       postgres:
