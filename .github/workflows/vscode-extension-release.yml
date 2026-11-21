@@ -1,3 +1,4 @@
+
 name: VS Code extension release
 
 on:
@@ -10,25 +11,34 @@ on:
   push:
     tags:
       - "vscode-v*"
+
 concurrency:
   group: vscode-extension-release
   cancel-in-progress: false
+
 permissions:
   contents: read
 
 jobs:
   verify-and-package:
     runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-node@v4.4.0
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
           cache: npm
+
       - name: Install CLI dependencies
         run: npm ci --no-audit --no-fund
+
       - name: Run unit and diagnostics regression tests
         run: npm run test:unit
+
       - name: Validate release version
         if: startsWith(github.ref, 'refs/tags/vscode-v') || inputs.publish_version != ''
         shell: bash
@@ -36,22 +46,32 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.publish_version }}
         run: |
           set -euo pipefail
+
           if [[ "$GITHUB_REF" == refs/tags/vscode-v* ]]; then
             expected="${GITHUB_REF_NAME#vscode-v}"
           else
             expected="$REQUESTED_VERSION"
           fi
+
           actual="$(node -p "require('./vscode-extension/package.json').version")"
-          test "$expected" = "$actual" || { echo "Requested version $expected does not match extension $actual"; exit 1; }
+
+          if [[ "$expected" != "$actual" ]]; then
+            echo "ERROR: Requested version $expected does not match extension $actual"
+            exit 1
+          fi
+
       - name: Build standalone VS Code extension
         working-directory: vscode-extension
         run: npm run build:standalone
+
       - name: Verify standalone runtime
         working-directory: vscode-extension
         run: npm run verify:standalone
+
       - name: Package extension
         working-directory: vscode-extension
         run: npx --yes @vscode/vsce@4.1.1 package --no-dependencies
+
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4.6.2
         with:
@@ -60,21 +80,34 @@ jobs:
           if-no-files-found: error
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/vscode-v') || (github.event_name == 'workflow_dispatch' && inputs.publish_version != '' && github.ref == 'refs/heads/main')
+    if: >-
+      startsWith(github.ref, 'refs/tags/vscode-v') ||
+      (github.event_name == 'workflow_dispatch' &&
+      inputs.publish_version != '' &&
+      github.ref == 'refs/heads/main')
+
     needs: verify-and-package
     runs-on: ubuntu-24.04
+
     permissions:
       contents: read
       id-token: write
+
     steps:
-      - uses: actions/checkout@v4.2.2
-      - uses: actions/setup-node@v4.4.0
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4.4.0
         with:
           node-version: "22"
-      - uses: actions/download-artifact@v4.3.0
+
+      - name: Download VSIX artifact
+        uses: actions/download-artifact@v4.3.0
         with:
           name: pg-safe-migrate-vscode-vsix
           path: dist
+
       - name: Resolve expected release version
         id: release
         shell: bash
@@ -82,32 +115,158 @@ jobs:
           REQUESTED_VERSION: ${{ inputs.publish_version }}
         run: |
           set -euo pipefail
+
           if [[ "$GITHUB_REF" == refs/tags/vscode-v* ]]; then
             expected="${GITHUB_REF_NAME#vscode-v}"
           else
             expected="$REQUESTED_VERSION"
           fi
+
           test -n "$expected"
           echo "version=$expected" >> "$GITHUB_OUTPUT"
+
       - name: Verify downloaded VSIX version
         shell: bash
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
+
           VSIX="dist/pg-safe-migrate-vscode-${EXPECTED_VERSION}.vsix"
-          test -f "$VSIX" || { echo "ERROR: Expected VSIX not found: $VSIX"; exit 1; }
+
+          if [[ ! -f "$VSIX" ]]; then
+            echo "ERROR: Expected VSIX not found: $VSIX"
+            exit 1
+          fi
+
           actual="$(unzip -p "$VSIX" extension/package.json | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>console.log(JSON.parse(s).version))")"
+
           echo "Expected version: $EXPECTED_VERSION"
           echo "Packaged version: $actual"
-          test "$actual" = "$EXPECTED_VERSION" || { echo 'ERROR: VSIX version mismatch'; exit 1; }
+
+          if [[ "$actual" != "$EXPECTED_VERSION" ]]; then
+            echo "ERROR: VSIX version mismatch"
+            exit 1
+          fi
+
+      - name: Check existing Marketplace version
+        id: marketplace
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const version = process.env.EXPECTED_VERSION;
+          const publisher = 'sukoaa';
+          const extension = 'pg-safe-migrate-vscode';
+
+          async function main() {
+            const response = await fetch(
+              'https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery',
+              {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json;api-version=7.2-preview.1',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  filters: [{
+                    criteria: [
+                      {
+                        filterType: 7,
+                        value: `${publisher}.${extension}`
+                      }
+                    ],
+                    pageNumber: 1,
+                    pageSize: 1,
+                    sortBy: 0,
+                    sortOrder: 0
+                  }],
+                  assetTypes: [],
+                  flags: 1
+                }),
+                signal: AbortSignal.timeout(15000)
+              }
+            );
+
+            if (!response.ok) {
+              throw new Error(
+                `Marketplace API returned HTTP ${response.status}`
+              );
+            }
+
+            const data = await response.json();
+            const found = data.results?.[0]?.extensions?.[0];
+
+            if (!found) {
+              throw new Error(
+                'Marketplace extension not found; cannot verify version status'
+              );
+            }
+
+            if (
+              found.publisher?.publisherName !== publisher ||
+              found.extensionName !== extension
+            ) {
+              throw new Error(
+                'Marketplace returned an unexpected extension'
+              );
+            }
+
+            if (!Array.isArray(found.versions)) {
+              throw new Error(
+                'Marketplace response did not include version data'
+              );
+            }
+
+            const exists = found.versions.some(
+              item => item.version === version
+            );
+
+            console.log(
+              `Marketplace version ${version}: ${exists ? 'already listed' : 'not listed'}`
+            );
+
+            fs.appendFileSync(
+              process.env.GITHUB_OUTPUT,
+              `exists=${exists}\n`
+            );
+          }
+
+          main().catch(error => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
+
+      - name: Skip existing Marketplace version
+        if: steps.marketplace.outputs.exists == 'true'
+        env:
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          echo "Version $EXPECTED_VERSION is already listed in the Marketplace."
+          echo "Skipping duplicate publishing."
+
       - name: Publish with Marketplace Trusted Publishing (OIDC)
+        if: steps.marketplace.outputs.exists == 'false'
         working-directory: vscode-extension
         shell: bash
         env:
           EXPECTED_VERSION: ${{ steps.release.outputs.version }}
         run: |
           set -euo pipefail
+
           VSIX="../dist/pg-safe-migrate-vscode-${EXPECTED_VERSION}.vsix"
-          test -f "$VSIX" || { echo "ERROR: Expected VSIX not found: $VSIX"; exit 1; }
-          npx --yes @vscode/vsce@4.1.1 publish --oidc --packagePath "$VSIX"
+
+          if [[ ! -f "$VSIX" ]]; then
+            echo "ERROR: Expected VSIX not found: $VSIX"
+            exit 1
+          fi
+
+          npx --yes @vscode/vsce@4.1.1 publish \
+            --oidc \
+            --packagePath "$VSIX"
