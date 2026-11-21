@@ -88,6 +88,8 @@ jobs:
 
     needs: verify-and-package
     runs-on: ubuntu-24.04
+    environment:
+      name: vscode-marketplace
 
     permissions:
       contents: read
