@@ -113,6 +113,7 @@ jobs:
           node test/verify-sarif.cjs report.sarif
 
       - name: Upload SARIF to GitHub code scanning
+        if: github.event_name != 'pull_request'
         id: upload
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
