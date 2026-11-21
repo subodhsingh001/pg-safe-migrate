@@ -90,9 +90,35 @@ jobs:
           PG_MAJOR: ${{ matrix.pg }}
         run: bash test/integration/run-postgres.sh
 
+
   sarif:
-    name: SARIF generation and optional upload
+    name: Generate and validate SARIF
     runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Generate and validate SARIF
+        run: |
+          node bin/cli.js examples/unsafe.sql --format sarif --output report.sarif --fail-on none
+          node test/verify-sarif.cjs report.sarif
+
+  upload-sarif:
+    name: Upload release verification SARIF
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+
     permissions:
       contents: read
       security-events: write
@@ -105,7 +131,8 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - run: npm ci --no-audit --no-fund
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
 
       - name: Generate and validate SARIF
         run: |
@@ -113,18 +140,7 @@ jobs:
           node test/verify-sarif.cjs report.sarif
 
       - name: Upload SARIF to GitHub code scanning
-        if: github.event_name != 'pull_request'
-        id: upload
-        continue-on-error: true
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
         with:
           sarif_file: report.sarif
-
-      - name: Report upload status
-        env:
-          OUTCOME: ${{ steps.upload.outcome }}
-        run: |
-          echo "SARIF upload outcome: $OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$OUTCOME" != 'success' ]; then
-            echo 'SARIF generated correctly, but GitHub code scanning upload failed. Check repository settings, event permissions and code scanning availability.' >> "$GITHUB_STEP_SUMMARY"
-          fi
+          category: release-verification

@@ -1,29 +1,67 @@
+
 name: Migration safety
+
 on:
   pull_request:
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   lint-migrations:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
+    name: Test and analyze migrations
+    runs-on: ubuntu-24.04
+
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci
-      - run: npm test
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
       - name: Migration analysis
         if: hashFiles('prisma/migrations/**/*.sql', 'drizzle/**/*.sql', 'migrations/**/*.sql', 'db/migrations/**/*.sql') != ''
         run: |
           node bin/cli.js --preset recommended --github --format sarif --output migration-results.sarif --fail-on none
           node bin/cli.js --preset recommended --summary "$GITHUB_STEP_SUMMARY" --format text --fail-on error
+
+  upload-sarif:
+    name: Upload migration SARIF
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate migration SARIF
+        id: generate
+        if: hashFiles('prisma/migrations/**/*.sql', 'drizzle/**/*.sql', 'migrations/**/*.sql', 'db/migrations/**/*.sql') != ''
+        run: |
+          node bin/cli.js --preset recommended --github --format sarif --output migration-results.sarif --fail-on none
+
       - name: Upload SARIF
-        if: always() && hashFiles('migration-results.sarif') != ''
+        if: steps.generate.outcome == 'success'
         uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
         with:
           sarif_file: migration-results.sarif
