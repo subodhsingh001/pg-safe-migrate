@@ -1,5 +1,6 @@
 .vscode/**
 *.vsix
+*-test.sql
 build-standalone.cjs
 node_modules/**
 **/.git/**
