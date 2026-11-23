@@ -145,6 +145,8 @@ function lint(document, interactive = false) {
       'PG Safe Migrate runtime not found. Rebuild the standalone VSIX or configure a project CLI.';
 
     output.appendLine(`CLI not found for ${document.uri.fsPath}`);
+    lastFindings.delete(key);
+    collection.delete(document.uri);
 
     if (interactive) {
       vscode.window.showErrorMessage(message);
@@ -184,6 +186,8 @@ function lint(document, interactive = false) {
     });
   } catch (err) {
     output.appendLine(`Node launch error: ${err.message}`);
+    lastFindings.delete(key);
+    collection.delete(document.uri);
 
     if (interactive) {
       vscode.window.showErrorMessage(
@@ -215,6 +219,11 @@ function lint(document, interactive = false) {
 
   child.on('error', err => {
     spawnFailed = true;
+    if (running.get(key) === task && !task.cancelled) {
+      running.delete(key);
+      lastFindings.delete(key);
+      collection.delete(document.uri);
+    }
 
     if (!task.cancelled) {
       output.appendLine(`Node launch error: ${err.message}`);
@@ -229,69 +238,53 @@ function lint(document, interactive = false) {
 
   child.on('close', code => {
     // Ignore cancelled, failed or superseded lint processes.
-    if (
-      task.cancelled ||
-      spawnFailed ||
-      running.get(key) !== task
-    ) {
+    if (task.cancelled || running.get(key) !== task) return;
+    running.delete(key);
+
+    if (spawnFailed) {
+      lastFindings.delete(key);
+      collection.delete(document.uri);
       return;
     }
 
-    running.delete(key);
-
     output.appendLine(`Exit code: ${code}`);
+    if (stderr.trim()) output.appendLine(`stderr: ${stderr.trim()}`);
 
-    if (stderr.trim()) {
-      output.appendLine(`stderr: ${stderr.trim()}`);
+    // With --fail-on none, unsafe SQL still returns 0.
+    // Nonzero exit codes mean linting did not complete successfully.
+    if (code !== 0) {
+      const message = `CLI failed with exit code ${code}` +
+        (stderr.trim() ? `: ${stderr.trim()}` : '');
+      output.appendLine(`Lint failed: ${message}`);
+      lastFindings.delete(key);
+      collection.delete(document.uri);
+      if (interactive) {
+        output.show(true);
+        vscode.window.showErrorMessage(`PG Safe Migrate: ${message}`);
+      }
+      return;
     }
 
     try {
       if (!stdout.trim()) {
-        throw new Error(
-          `CLI returned no JSON (exit ${code}). ${stderr.trim()}`
-        );
+        throw new Error('CLI returned no JSON');
       }
-
       const report = JSON.parse(stdout);
-
-      const findings = Array.isArray(report)
-        ? report
-        : report.findings;
-
+      const findings = Array.isArray(report) ? report : report?.findings;
       if (!Array.isArray(findings)) {
         throw new Error('CLI JSON has no findings array');
       }
 
-      if (code !== 0) {
-        output.appendLine(
-          `CLI returned findings with exit code ${code}`
-        );
-      }
-
-      // Never publish diagnostics from an outdated document.
-      if (
-        document.isClosed ||
-        document.isDirty ||
-        document.version !== documentVersion
-      ) {
+      // Do not publish results from an outdated document.
+      if (document.isClosed || document.isDirty || document.version !== documentVersion) {
         return;
       }
 
+      const diagnostics = diagnosticsFor(findings, document);
       lastFindings.set(key, findings);
-
-      collection.set(
-        document.uri,
-        diagnosticsFor(findings, document)
-      );
-
-      const errors = findings.filter(
-        f => String(f.severity).toLowerCase() === 'error'
-      ).length;
-
-      output.appendLine(
-        `Findings: ${findings.length}; errors: ${errors}`
-      );
-
+      collection.set(document.uri, diagnostics);
+      const errors = findings.filter(f => String(f.severity).toLowerCase() === 'error').length;
+      output.appendLine(`Findings: ${findings.length}; errors: ${errors}`);
       if (interactive) {
         vscode.window.showInformationMessage(
           `PG Safe Migrate: ${findings.length} finding(s), ${errors} error(s).`
@@ -299,13 +292,12 @@ function lint(document, interactive = false) {
       }
     } catch (err) {
       output.appendLine(`Lint failed: ${err.message}`);
-
+      // A failed report must not leave stale diagnostics on screen.
+      lastFindings.delete(key);
+      collection.delete(document.uri);
       if (interactive) {
         output.show(true);
-
-        vscode.window.showErrorMessage(
-          `PG Safe Migrate: ${err.message}`
-        );
+        vscode.window.showErrorMessage(`PG Safe Migrate: ${err.message}`);
       }
     }
   });
