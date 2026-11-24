@@ -110,25 +110,18 @@ function settings() {
 
 function cancel(uri) {
   const key = uri.toString();
-
-  if (timers.has(key)) {
-    clearTimeout(timers.get(key));
-  }
-
+  if (timers.has(key)) clearTimeout(timers.get(key));
   timers.delete(key);
 
-  const processInfo = running.get(key);
-
-  if (processInfo) {
-    processInfo.cancelled = true;
-    running.delete(key);
-
-    try {
-      processInfo.child.kill();
-    } catch {
-      // Process may already have exited.
-    }
+  const task = running.get(key);
+  if (!task) return;
+  task.cancelled = true;
+  running.delete(key);
+  if (task.timeout) {
+    clearTimeout(task.timeout);
+    task.timeout = null;
   }
+  try { task.child.kill(); } catch { /* Already exited. */ }
 }
 
 function lint(document, interactive = false) {
@@ -200,61 +193,70 @@ function lint(document, interactive = false) {
 
   const task = {
     child,
-    cancelled: false
+    cancelled: false,
+    timedOut: false,
+    outputExceeded: false,
+    timeout: null
   };
-
   running.set(key, task);
 
+  const configuredTimeout = Number(settings().get('timeoutMs', 30000));
+  const timeoutMs = Number.isFinite(configuredTimeout)
+    ? Math.min(120000, Math.max(1000, configuredTimeout))
+    : 30000;
+  const MAX_STDOUT_BYTES = 16 * 1024 * 1024;
+  const MAX_STDERR_BYTES = 1024 * 1024;
   let stdout = '';
   let stderr = '';
+  let stdoutBytes = 0;
+  let stderrBytes = 0;
   let spawnFailed = false;
 
+  function stopForOutputLimit() {
+    if (task.cancelled || task.outputExceeded) return;
+    task.outputExceeded = true;
+    try { child.kill(); } catch { /* Already exited. */ }
+  }
+
+  task.timeout = setTimeout(() => {
+    if (running.get(key) !== task || task.cancelled) return;
+    task.timedOut = true;
+    output.appendLine(`Lint timed out after ${timeoutMs} ms: ${document.uri.fsPath}`);
+    try { child.kill(); } catch { /* Already exited. */ }
+  }, timeoutMs);
+
   child.stdout.on('data', chunk => {
-    stdout += chunk.toString();
+    stdoutBytes += chunk.length;
+    if (stdoutBytes > MAX_STDOUT_BYTES) {
+      stopForOutputLimit();
+      return;
+    }
+    if (!task.outputExceeded) stdout += chunk.toString();
   });
 
   child.stderr.on('data', chunk => {
-    stderr += chunk.toString();
+    stderrBytes += chunk.length;
+    if (stderrBytes > MAX_STDERR_BYTES) {
+      stopForOutputLimit();
+      return;
+    }
+    if (!task.outputExceeded) stderr += chunk.toString();
   });
 
   child.on('error', err => {
     spawnFailed = true;
-    if (running.get(key) === task && !task.cancelled) {
-      running.delete(key);
-      lastFindings.delete(key);
-      collection.delete(document.uri);
-    }
-
-    if (!task.cancelled) {
-      output.appendLine(`Node launch error: ${err.message}`);
-
-      if (interactive) {
-        vscode.window.showErrorMessage(
-          `PG Safe Migrate: ${err.message}`
-        );
-      }
-    }
+    if (!task.cancelled) output.appendLine(`Node launch error: ${err.message}`);
   });
 
   child.on('close', code => {
-    // Ignore cancelled, failed or superseded lint processes.
+    if (task.timeout) {
+      clearTimeout(task.timeout);
+      task.timeout = null;
+    }
     if (task.cancelled || running.get(key) !== task) return;
     running.delete(key);
 
-    if (spawnFailed) {
-      lastFindings.delete(key);
-      collection.delete(document.uri);
-      return;
-    }
-
-    output.appendLine(`Exit code: ${code}`);
-    if (stderr.trim()) output.appendLine(`stderr: ${stderr.trim()}`);
-
-    // With --fail-on none, unsafe SQL still returns 0.
-    // Nonzero exit codes mean linting did not complete successfully.
-    if (code !== 0) {
-      const message = `CLI failed with exit code ${code}` +
-        (stderr.trim() ? `: ${stderr.trim()}` : '');
+    function fail(message) {
       output.appendLine(`Lint failed: ${message}`);
       lastFindings.delete(key);
       collection.delete(document.uri);
@@ -262,23 +264,25 @@ function lint(document, interactive = false) {
         output.show(true);
         vscode.window.showErrorMessage(`PG Safe Migrate: ${message}`);
       }
-      return;
+    }
+
+    if (task.timedOut) return fail(`Lint exceeded ${timeoutMs} ms`);
+    if (task.outputExceeded) return fail('CLI output exceeded the safety limit');
+    if (spawnFailed) return fail('Unable to start the Node.js CLI');
+
+    output.appendLine(`Exit code: ${code}`);
+    if (stderr.trim()) output.appendLine(`stderr: ${stderr.trim()}`);
+    if (code !== 0) {
+      return fail(`CLI failed with exit code ${code}` +
+        (stderr.trim() ? `: ${stderr.trim()}` : ''));
     }
 
     try {
-      if (!stdout.trim()) {
-        throw new Error('CLI returned no JSON');
-      }
+      if (!stdout.trim()) throw new Error('CLI returned no JSON');
       const report = JSON.parse(stdout);
       const findings = Array.isArray(report) ? report : report?.findings;
-      if (!Array.isArray(findings)) {
-        throw new Error('CLI JSON has no findings array');
-      }
-
-      // Do not publish results from an outdated document.
-      if (document.isClosed || document.isDirty || document.version !== documentVersion) {
-        return;
-      }
+      if (!Array.isArray(findings)) throw new Error('CLI JSON has no findings array');
+      if (document.isClosed || document.isDirty || document.version !== documentVersion) return;
 
       const diagnostics = diagnosticsFor(findings, document);
       lastFindings.set(key, findings);
@@ -291,14 +295,7 @@ function lint(document, interactive = false) {
         );
       }
     } catch (err) {
-      output.appendLine(`Lint failed: ${err.message}`);
-      // A failed report must not leave stale diagnostics on screen.
-      lastFindings.delete(key);
-      collection.delete(document.uri);
-      if (interactive) {
-        output.show(true);
-        vscode.window.showErrorMessage(`PG Safe Migrate: ${err.message}`);
-      }
+      fail(err.message);
     }
   });
 }
@@ -491,6 +488,10 @@ function deactivate() {
 
   for (const task of running.values()) {
     task.cancelled = true;
+    if (task.timeout) {
+      clearTimeout(task.timeout);
+      task.timeout = null;
+    }
 
     try {
       task.child.kill();
