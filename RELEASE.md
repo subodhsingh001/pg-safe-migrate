@@ -15,4 +15,4 @@ Version `2.0.0` is already published according to the maintainer. **Do not publi
 
 ## Future versions
 
-For changes to the published npm package, increment the version, run all checks again, then publish the new version only after reviewing its release contents. See `UPGRADE-NOTES.md` for version-specific guidance.
+For changes to the published npm package, increment the version, run all checks again, then publish the new version only after reviewing its release contents. See `docs/internal/UPGRADE-NOTES.md` for version-specific guidance.

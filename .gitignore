@@ -19,3 +19,9 @@ release-report.md
 /day6-gc.log
 /migration-check.sql
 /vscode-extension/week5-extension-test.sql
+/.local-artifacts/
+/release-report.json
+/release-report.md
+/release-report.sarif
+/report.sarif
+/report-v2.sarif
