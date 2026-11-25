@@ -1,4 +1,4 @@
-> **Published npm CLI: v2.5.0.** **VS Code extension release candidate: v0.7.0 (not published).** **CLI release candidate: v2.6.0 (not published).** Week 3 CI policy gates and risk-baseline features are included in the published CLI. Migration analysis does not guarantee zero downtime.
+> **CLI documentation: v2.6.0.** **VS Code extension documentation: v0.7.0.** Check npm and the Marketplace for available versions. Migration analysis does not guarantee zero downtime.
 
 # pg-safe-migrate
 
@@ -53,7 +53,7 @@ Run a deterministic, policy-driven static lint check in CI:
 node bin/cli.js db/migrations --gate-policy examples/week3-gate-policy.json --fail-on none
 ```
 
-The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This feature is included in the published v2.5.0 CLI. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
+The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This feature was introduced in CLI v2.5.0. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
 
 [Install from npm](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [Install the VS Code extension](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
@@ -63,7 +63,7 @@ The gate can block selected `PGxxx` rules, excessive warnings, and heuristic ris
 - [Short demonstration recording script](docs/DEMO-SCRIPT.md)
 - [Proposed npm and VS Code Marketplace copy](docs/MARKETPLACE-COPY.md)
 
-**Release note:** The Week 3 policy, baseline, production-context, and PR reporting features are included in published npm v2.5.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
+**Release note:** The Week 3 policy, baseline, production-context, and PR reporting features were introduced in npm v2.5.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
 
 ## Installation
 
@@ -76,7 +76,7 @@ npm install --save-dev @subodh001/pg-safe-migrate
 Or execute the published package without installing it in your project:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --help
 ```
 
 ## Quick start
@@ -133,7 +133,7 @@ For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub A
 
 ## PostgreSQL migration rules
 
-The v2.6.0 release candidate documents the following identifiers; this table is not a certification of the published v2.5.0 artifact.
+The following rule identifiers are documented for CLI v2.6.0.
 
 23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 are triggered for a configured target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata.
 
@@ -196,12 +196,12 @@ The workflow checks changed SQL migrations so teams can adopt the linter without
 
 For reproducible builds, pin the package to a reviewed version and upgrade deliberately.
 
-## Verify the published CLI
+## Verify CLI v2.6.0 after publication
 
 From a clean directory, run:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate --help
+npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --help
 ```
 
 Create a file named `unsafe.sql`:
@@ -213,7 +213,7 @@ CREATE INDEX idx_users_email ON users(email);
 Then execute:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate unsafe.sql
+npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate unsafe.sql
 ```
 
 Expected behavior: PG001 is reported and the CLI exits with code `1`.
@@ -253,11 +253,9 @@ Check the npm package:
 npm pack --dry-run
 ```
 
-## Current release
+## CLI v2.6.0
 
-**v2.5.0 (published CLI)**
-
-The v2.6.0 release candidate adds improved SQL positions, transaction tracking and rule catalog metadata. See [CHANGELOG.md](CHANGELOG.md).
+Version v2.6.0 adds improved SQL positions, transaction tracking and rule catalog metadata. See [CHANGELOG.md](CHANGELOG.md).
 
 - Expanded PostgreSQL migration risk checks and framework advisories
 - PostgreSQL AST-based parsing
@@ -276,7 +274,7 @@ The v2.6.0 release candidate adds improved SQL positions, transaction tracking a
 
 ### Parser and diagnostic capabilities
 
-The v2.6.0 release candidate includes:
+Version v2.6.0 includes:
 
 - Unicode-aware diagnostic positions with UTF-16 editor coordinates.
 - Windows CRLF and Unix LF compatibility.
@@ -285,7 +283,7 @@ The v2.6.0 release candidate includes:
 - Explicit transaction tracking, including savepoints and chained transactions.
 - PostgreSQL syntax error detection.
 
-These parser improvements are included in the v2.6.0 release candidate, not the published npm v2.5.0 release. Large SQL inputs can consume substantial memory; static analysis has no hard process memory cap.
+These parser improvements are included in v2.6.0. Large SQL inputs can consume substantial memory; static analysis has no hard process memory cap.
 
 ### Static analysis boundaries
 

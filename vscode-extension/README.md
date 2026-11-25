@@ -21,7 +21,7 @@ Standalone PostgreSQL migration linting for `.sql` files, powered by the bundled
 * `pgSafeMigrate.debounceMs` (default `350`): debounce in milliseconds.
 * `pgSafeMigrate.nodePath` (default `node`): Node.js executable.
 
-### v0.7.0 release candidate safeguards (not yet published)
+### v0.7.0 safeguards
 
 - `pgSafeMigrate.timeoutMs`: 30000 ms (1000–120000).
 - `pgSafeMigrate.maxConcurrentLints`: 1 (1–4 per extension host).

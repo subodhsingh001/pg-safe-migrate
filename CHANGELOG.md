@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.6.0] - Release candidate (not published)
+## [2.6.0]
 
 - Unicode-aware SQL positions, leading comment handling and transaction tracking for savepoints and chained transactions.
 - Optimized statement position tracking.
