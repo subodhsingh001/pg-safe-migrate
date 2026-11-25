@@ -13,11 +13,12 @@ import { findMigrationFiles } from '../src/detector.js';
 import { getChangedSqlFiles } from '../src/gitDiff.js';
 import { loadConfig, isExcluded } from '../src/config.js';
 import { analyzeFiles } from '../src/analysis.js';
+import { suppressionReport, suppressionText, suppressionMarkdown } from '../src/suppression-report.js';
 import { toJson, toSarif, toMarkdownReport } from '../src/reports.js';
 import { inspectDatabaseUrl } from '../src/db-inspect.js';
 import { simulateSqlFile } from '../src/simulator.js';
 import { combinedAssessment } from '../src/combined.js';
-import { loadTeamPolicy, assessTeamPolicy, assessLintPolicy } from '../src/team-policy.js';
+import { loadTeamPolicy, assessTeamPolicy, assessLintPolicy, validateGateConfig, applySuppressionPolicy, enforceSuppressionAudit } from '../src/team-policy.js';
 import { loadProductionContext, productionAssessment } from '../src/production-context.js';
 import { createRiskBaseline, loadRiskBaseline, compareRiskBaseline, writeRiskBaseline } from '../src/risk-baseline.js';
 
@@ -59,8 +60,10 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
        config.postgresVersion=version;
      }
      if ((opts.gatePolicy || opts.riskBaseline || opts.writeRiskBaseline || opts.productionContext) && (opts.assess || opts.simulate || opts.migrationsDir || opts.inspectDb)) throw new Error('--gate-policy is for static lint mode only');
+     if (config.suppression?.enabled && (opts.assess || opts.teamPolicy || ((opts.riskBaseline || opts.writeRiskBaseline) && opts.gatePolicy))) throw new Error('Inline suppression is not supported with combined assessment or gate plus risk baseline');
      if (opts.assess) {
        const policy = opts.teamPolicy ? loadTeamPolicy(opts.teamPolicy) : null;
+       validateGateConfig(config, policy);
        const assessment = await combinedAssessment({ file: opts.simulate, migrationsDir: opts.migrationsDir, baseline: opts.baseline, verifySql: opts.verifySql, postgresVersion: String(opts.postgresVersion ?? '16'), config });
        if (policy) assessment.teamPolicy = assessTeamPolicy(assessment, policy);
        if (opts.output) { fs.mkdirSync(path.dirname(path.resolve(opts.output)), {recursive:true}); fs.writeFileSync(opts.output, JSON.stringify(assessment,null,2)+'\n'); }
@@ -80,23 +83,28 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
        return;
      }
      const gatePolicy = opts.gatePolicy ? loadTeamPolicy(opts.gatePolicy) : null;
+     validateGateConfig(config, gatePolicy);
      if (gatePolicy?.requireSimulation) throw new Error('requireSimulation requires --assess with a disposable PostgreSQL simulation');
      const files=(opts.changed?getChangedSqlFiles(typeof opts.changed==='string'?opts.changed:undefined):findMigrationFiles(target)).filter(f=>!isExcluded(f,config.exclude));
      const entries=files.map(file=>({file:path.relative(process.cwd(),file)||file,sql:fs.readFileSync(file,'utf8')}));
-     const findings=await analyzeFiles(entries,config,{advisor:opts.advisor});
-     const production = opts.productionContext ? productionAssessment(findings, loadProductionContext(opts.productionContext)) : null;
+     const suppressionAudit = [];
+     const findings=await analyzeFiles(entries,applySuppressionPolicy(config, gatePolicy),{advisor:opts.advisor,suppressionAudit});
+     const suppression = config.suppression?.enabled ? suppressionReport(suppressionAudit) : undefined;
+     const allFindings = [...findings, ...suppressionAudit.filter(r => r.status === 'suppressed').map(r => r.finding)];
+     const production = opts.productionContext ? productionAssessment(allFindings, loadProductionContext(opts.productionContext)) : null;
      if (opts.writeRiskBaseline && opts.riskBaseline) throw new Error('Cannot combine --write-risk-baseline and --risk-baseline');
      if (opts.writeRiskBaseline && opts.gatePolicy) throw new Error('Baseline creation cannot be combined with a gate policy');
-     const baselineComparison = opts.riskBaseline ? compareRiskBaseline(findings, entries, loadRiskBaseline(opts.riskBaseline)) : null;
+     const baselineComparison = opts.riskBaseline ? compareRiskBaseline(allFindings, entries, loadRiskBaseline(opts.riskBaseline)) : null;
      // In baseline mode, only newly introduced findings are subject to the opt-in gate.
      const gateFindings = baselineComparison ? baselineComparison.newFindings : findings;
-     const gate = opts.gatePolicy ? assessLintPolicy(gateFindings, gatePolicy, summarizeRisk(gateFindings)) : null;
-     if (opts.writeRiskBaseline) writeRiskBaseline(opts.writeRiskBaseline, createRiskBaseline(findings, entries));
+     const gate = opts.gatePolicy ? enforceSuppressionAudit(assessLintPolicy(suppression ? allFindings : gateFindings, gatePolicy, summarizeRisk(suppression ? allFindings : gateFindings)), gatePolicy, suppression) : null;
+     if (opts.writeRiskBaseline) writeRiskBaseline(opts.writeRiskBaseline, createRiskBaseline(allFindings, entries));
      if (opts.github) process.stdout.write(toGitHubAnnotations(findings));
-     if (opts.summary) {fs.mkdirSync(path.dirname(path.resolve(opts.summary)),{recursive:true});fs.writeFileSync(opts.summary,toMarkdownSummary(findings,files.length));}
-     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion}):opts.format==='sarif'?toSarif(findings):opts.format==='markdown'?toMarkdownReport(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,risk:opts.risk?summarizeRisk(findings):undefined}):[
+     if (opts.summary) {fs.mkdirSync(path.dirname(path.resolve(opts.summary)),{recursive:true});fs.writeFileSync(opts.summary,toMarkdownSummary(findings,files.length) + (suppression ? suppressionMarkdown(suppression) : ''));}
+     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,...(suppression ? { suppression } : {})}):opts.format==='sarif'?toSarif(findings,suppression):opts.format==='markdown'?toMarkdownReport(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,risk:opts.risk?summarizeRisk(allFindings):undefined,suppression}):[
        ...findings.flatMap(f=>[`${f.file}:${f.line}:${f.column} [${f.ruleId}] ${f.severity}: ${f.message}`,`  Fix: ${f.fix}`,...(f.advisor?f.advisor.steps.map((s,i)=>`  ${i+1}. ${s}`):[])]),
-       ...(opts.risk?[`Risk: ${JSON.stringify(summarizeRisk(findings))}`]:[]),
+       ...(opts.risk?[`Risk: ${JSON.stringify(summarizeRisk(allFindings))}`]:[]),
+       ...(suppression ? [suppressionText(suppression)] : []),
        `Checked ${files.length} SQL file(s); found ${findings.length} configured risk(s). No downtime guarantee.`
      ].join('\n');
      const gateReport = opts.format === 'json' && (gate || baselineComparison || production) ? JSON.stringify({ ...JSON.parse(report), ...(baselineComparison ? { baseline: { newCount: baselineComparison.newCount, existingCount: baselineComparison.existingCount, resolvedCount: baselineComparison.resolvedCount, newFindings: baselineComparison.newFindings } } : {}), ...(production ? { production } : {}), ...(gate ? { gate: { name: gate.name, decision: gate.passed ? 'PASS' : 'BLOCK', passed: gate.passed, reasons: gate.reasons, note: gate.note } } : {}) }, null, 2) : report;
@@ -104,7 +112,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      else console.log(opts.format==='text'?(findings.length?chalk.yellow(gateReport):chalk.green(gateReport)):gateReport);
      if (production && opts.format !== 'json') console.error(`[PG Safe Migrate production] Advisory context evaluated for ${production.assessments.length} finding(s). Use --format json for details. No downtime guarantee.`);
      if (baselineComparison && opts.format !== 'json') console.error(`[PG Safe Migrate baseline] ${baselineComparison.newCount} new, ${baselineComparison.existingCount} existing, ${baselineComparison.resolvedCount} resolved finding(s).`);
-     if (opts.writeRiskBaseline) console.error(`[PG Safe Migrate baseline] Wrote ${findings.length} finding fingerprint(s) to ${opts.writeRiskBaseline}; review before committing.`);
+     if (opts.writeRiskBaseline) console.error(`[PG Safe Migrate baseline] Wrote ${allFindings.length} finding fingerprint(s) to ${opts.writeRiskBaseline}; review before committing.`);
      if (gate) console.error(`[PG Safe Migrate gate] ${gate.passed ? 'PASS' : 'BLOCK'} (${gate.name})${gate.reasons.length ? ': '+gate.reasons.join('; ') : ''}. ${gate.note}`);
      process.exitCode=(gate && !gate.passed) || (opts.failOn==='warning' && gateFindings.length>0) || (opts.failOn==='error' && gateFindings.some(f=>f.severity==='error')) ? 1 : 0;
    }catch(e){console.error(`Error: ${e.message}`);process.exitCode=2;}

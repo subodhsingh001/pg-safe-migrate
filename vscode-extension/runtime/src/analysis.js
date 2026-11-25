@@ -2,6 +2,8 @@ import { parseSqlFile } from './parser.js';
 import { lintStatements } from './engine.js';
 import { advise } from './advisor.js';
 import { lockFor } from './locks.js';
+import { normalizeSuppression } from './config.js';
+import { matchSuppressions } from './suppression-matcher.js';
 
 const ADVISORY_RULES = new Set(['PG015', 'PG016', 'PG017']);
 
@@ -209,6 +211,9 @@ export async function analyzeFiles(
   options = {}
 ) {
   const findings = [];
+  const policy = normalizeSuppression(config.suppression);
+  const audit = options.suppressionAudit;
+  if (policy.enabled && !Array.isArray(audit)) throw new Error('Enabled suppression requires an audit sink');
   const seen = new Map();
 
   const version = config.postgresVersion ?? null;
@@ -222,6 +227,17 @@ export async function analyzeFiles(
       details: true
     });
 
+    const candidates = new Map();
+    if (policy.enabled) {
+      const result = await matchSuppressions(sql, parsed);
+      if (result.scanError) audit.push({ file, status: 'scan-error', ...result.scanError });
+      for (const rejected of result.rejected) audit.push({ file, status: 'rejected', ...rejected });
+      for (const match of result.matches) {
+        if (match.ruleIds.some(id => policy.protectedRules.includes(id))) {
+          audit.push({ file, status: 'rejected', ...match, message: 'Directive includes a protected rule' });
+        } else candidates.set(match.statementOffset, { match, used: new Set() });
+      }
+    }
     const framework = frameworkFor(file);
     const locate = createPositionTracker(sql);
 
@@ -360,7 +376,7 @@ export async function analyzeFiles(
           continue;
         }
 
-        findings.push({
+        const finding = {
           ...issue,
           severity,
           file,
@@ -373,13 +389,21 @@ export async function analyzeFiles(
                 advisor: advise(issue, framework)
               }
             : {})
-        });
+        };
+        const candidate = candidates.get(offset);
+        if (candidate?.match.ruleIds.includes(issue.ruleId)) {
+          candidate.used.add(issue.ruleId);
+          audit.push({ file, status: 'suppressed', directiveLine: candidate.match.line, reason: candidate.match.reason, finding });
+        } else findings.push(finding);
       }
 
       // Close the explicit transaction after processing.
       if (transaction === 'end') {
         inTransaction = Boolean(stmt.TransactionStmt?.chain);
       }
+    }
+    for (const { match, used } of candidates.values()) {
+      for (const ruleId of match.ruleIds) if (!used.has(ruleId)) audit.push({ file, status: 'unused', ruleId, directiveLine: match.line, reason: match.reason });
     }
   }
 

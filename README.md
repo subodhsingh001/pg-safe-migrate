@@ -15,7 +15,7 @@ Open-source, AST-based migration linting for Prisma, Drizzle, Flyway and raw SQL
 Requires Node.js 18 or later; use a maintained Node.js release for new installations.
 
 ```sh
-npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate
+npx --yes --package=@subodh001/pg-safe-migrate@2.7.0 pg-safe-migrate
 ```
 
 Or install in your project:
@@ -65,7 +65,7 @@ jobs:
       - name: Check changed SQL
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
+        run: npx --yes --package=@subodh001/pg-safe-migrate@2.7.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
 ```
 
 Start with reporting-only mode (`--fail-on none`) if introducing linting into an existing project. Review findings before enforcing a gate. See the [adoption guide](docs/ADOPTION-GUIDE.md).
@@ -118,6 +118,120 @@ Report options: `--format text|json|sarif|markdown`, `--output <file>`, `--advis
 Each finding includes a description of the risk and a suggested safer migration approach.
 
 A passing result means no configured patterns were detected, not that a migration is guaranteed to be safe.
+
+
+## Inline Rule Suppression
+
+Introduced in v2.7.0, inline suppression allows teams to acknowledge reviewed migration risks without disabling an entire safety rule.
+
+Suppression is disabled by default.
+
+### Enable suppression
+
+Create or update `pg-safe-migrate.config.json`:
+
+```json
+{
+  "suppression": {
+    "enabled": true,
+    "requireReason": true,
+    "reportSuppressed": true,
+    "protectedRules": ["PG011", "PG023"]
+  }
+}
+```
+
+### Suppress a reviewed finding
+
+```sql
+-- pg-safe-migrate-disable-next-line PG002 -- reason: DBA approved after application compatibility review
+ALTER TABLE users DROP COLUMN legacy_email;
+```
+
+The directive applies only to the immediately following SQL statement.
+
+Multiple rule IDs can be specified using commas.
+
+### Built-in safeguards
+
+- Mandatory suppression reasons.
+- PostgreSQL AST-based statement targeting.
+- SQL-aware comment scanning.
+- Protected rule enforcement.
+- Unknown rule detection.
+- Rejected and unused directive reporting.
+- Fail-closed handling of ambiguous SQL scanning.
+- Audit reporting in terminal, JSON, SARIF and Markdown.
+- Suppression-aware VS Code diagnostics.
+
+### Generate an audit report
+
+```sh
+npx --no-install pg-safe-migrate migrations \
+  --config pg-safe-migrate.config.json \
+  --format json \
+  --output migration-report.json
+```
+
+Suppressed findings remain available in the audit report.
+
+### Enterprise Migration Governance
+
+Teams can enforce additional suppression restrictions using a trusted gate policy.
+
+Example `enterprise-policy.json`:
+
+```json
+{
+  "name": "Production Migration Safety",
+  "maxRiskScore": 60,
+  "maxWarnings": 5,
+  "blockedRules": ["PG002", "PG011", "PG023"],
+  "suppression": {
+    "protectedRules": ["PG008", "PG011", "PG023"],
+    "maxSuppressedFindings": 2,
+    "failOnRejected": true,
+    "failOnUnused": true
+  }
+}
+```
+
+Run the enterprise gate:
+
+```sh
+npx --no-install pg-safe-migrate migrations \
+  --config pg-safe-migrate.config.json \
+  --gate-policy enterprise-policy.json \
+  --format json \
+  --output migration-report.json
+```
+
+Enterprise enforcement:
+
+- Prevents suppression of blocked and protected rules.
+- Includes suppressed findings in risk calculations.
+- Enforces suppression limits.
+- Rejects project exclusions and severity-weakening overrides.
+- Can block a migration even when `--fail-on none` is supplied.
+
+Use a separate trusted configuration for enterprise gates. Do not reuse ordinary lint configurations containing exclusions or warning/off rule overrides.
+
+The CLI, policy, configuration and CI workflow must come from trusted sources.
+
+### VS Code Integration
+
+The PG Safe Migrate extension supports inline suppression through workspace configuration.
+
+- Suppressed findings are removed from active diagnostics.
+- Protected findings remain visible.
+- Suppression audit counts appear in the PG Safe Migrate Output channel.
+- Disabling suppression restores the original findings.
+
+### Limitations
+
+- Suppression is not evidence of migration safety.
+- Some combinations of suppression, risk baselines and combined simulation are not supported.
+- Static analysis cannot guarantee zero downtime.
 
 ## Advanced capabilities
 
