@@ -1,4 +1,3 @@
-
 import { parseSqlFile } from './parser.js';
 import { lintStatements } from './engine.js';
 import { advise } from './advisor.js';
@@ -97,7 +96,6 @@ function txType(stmt) {
   if ([
     'TRANS_STMT_COMMIT',
     'TRANS_STMT_ROLLBACK',
-    'TRANS_STMT_ROLLBACK_TO',
     'TRANS_STMT_PREPARE'
   ].includes(kind)) {
     return 'end';
@@ -380,7 +378,7 @@ export async function analyzeFiles(
 
       // Close the explicit transaction after processing.
       if (transaction === 'end') {
-        inTransaction = false;
+        inTransaction = Boolean(stmt.TransactionStmt?.chain);
       }
     }
   }

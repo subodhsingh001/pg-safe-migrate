@@ -261,20 +261,42 @@ npm pack --dry-run
 
 ## Limitations
 
-`pg-safe-migrate` is a static AST-based linter, not a migration execution simulator.
+`pg-safe-migrate` is a static AST-based PostgreSQL migration linter. Static linting is not a migration execution simulator.
 
-It does not:
+### Parser and diagnostic capabilities
 
-- Connect to your production database
-- Estimate actual lock waiting times
-- Validate rollback procedures
-- Inspect live database schemas
-- Guarantee zero downtime
-- Analyze SQL embedded inside changed JavaScript or TypeScript files
+The current development version includes:
+
+- Unicode-aware diagnostic positions with UTF-16 editor coordinates.
+- Windows CRLF and Unix LF compatibility.
+- Single-line and nested block comment handling.
+- Dollar-quoted and escaped string handling.
+- Explicit transaction tracking, including savepoints and chained transactions.
+- PostgreSQL syntax error detection.
+
+These parser improvements are development changes and are not yet included in the published npm v2.5.0 release.
+
+### Static analysis boundaries
+
+Static linting does not:
+
+- Connect to your production database.
+- Estimate actual lock waiting times.
+- Validate rollback procedures.
+- Inspect live database schemas.
+- Comprehensively analyze SQL inside PL/pgSQL functions, stored procedures or anonymous DO blocks.
+- Resolve dynamically generated SQL.
+- Analyze SQL embedded inside JavaScript or TypeScript files.
+- Detect every application-managed or ORM-managed transaction.
+- Guarantee zero downtime or production migration safety.
 
 Some flagged operations may be acceptable under controlled conditions. Some unflagged operations may still cause downtime.
 
-Always consider PostgreSQL version, table size, transaction behavior, lock timeouts, long-running transactions, and application deployment sequencing.
+Optional database inspection and disposable PostgreSQL simulation are separate capabilities with their own limitations.
+
+Always consider PostgreSQL version, table size, transaction behavior, lock timeouts, long-running transactions and application deployment sequencing.
+
+Validate migrations against a representative PostgreSQL environment before production deployment.
 
 ## Validation and real ORM runners
 

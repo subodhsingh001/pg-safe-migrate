@@ -1,4 +1,3 @@
-
 import pgQuery from 'libpg-query';
 
 export async function parseSqlFile(sqlContent, options = {}) {
@@ -16,6 +15,22 @@ export async function parseSqlFile(sqlContent, options = {}) {
 
     const source = String(sqlContent);
 
+    // Convert ordered PostgreSQL UTF-8 byte locations to UTF-16 offsets.
+    const byteLength = Buffer.byteLength(source);
+    let byteCursor = 0;
+    let charCursor = 0;
+    function locateByte(target) {
+      if (target < byteCursor) { byteCursor = 0; charCursor = 0; }
+      while (byteCursor < target && charCursor < source.length) {
+        const cp = source.codePointAt(charCursor);
+        const width = cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4;
+        if (byteCursor + width > target) break;
+        byteCursor += width;
+        charCursor += cp > 0xffff ? 2 : 1;
+      }
+      return charCursor;
+    }
+
     return statements.map(s => {
       let offset =
         typeof s.stmt_location === 'number'
@@ -24,17 +39,38 @@ export async function parseSqlFile(sqlContent, options = {}) {
 
       offset = Math.max(
         0,
-        Math.min(offset, source.length)
+        Math.min(offset, byteLength)
       );
 
-      // PostgreSQL may report the beginning of the
-      // statement span before leading whitespace.
-      // Advance to the first non-whitespace character.
-      while (
-        offset < source.length &&
-        /\s/.test(source[offset])
-      ) {
-        offset++;
+      offset = locateByte(offset);
+
+      // Skip only leading SQL trivia, never statement contents.
+      while (offset < source.length) {
+        if (/[ \t\r\n\f\v]/.test(source[offset])) {
+          offset++;
+        } else if (source.startsWith('--', offset)) {
+          offset += 2;
+          while (offset < source.length &&
+                 source[offset] !== '\n' && source[offset] !== '\r') {
+            offset++;
+          }
+        } else if (source.startsWith('/*', offset)) {
+          offset += 2;
+          let depth = 1;
+          while (offset < source.length && depth > 0) {
+            if (source.startsWith('/*', offset)) {
+              depth++;
+              offset += 2;
+            } else if (source.startsWith('*/', offset)) {
+              depth--;
+              offset += 2;
+            } else {
+              offset++;
+            }
+          }
+        } else {
+          break;
+        }
       }
 
       return {
