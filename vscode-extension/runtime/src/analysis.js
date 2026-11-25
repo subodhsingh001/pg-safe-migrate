@@ -26,6 +26,46 @@ export function position(sql, offset = 0) {
   };
 }
 
+
+function createPositionTracker(sql) {
+  const source = String(sql ?? '');
+
+  let cursor = 0;
+  let line = 1;
+  let lineStart = 0;
+
+  return function locate(offset = 0) {
+    const numericOffset = Number(offset);
+
+    const safeOffset = Number.isFinite(numericOffset)
+      ? Math.min(
+          source.length,
+          Math.max(0, Math.floor(numericOffset))
+        )
+      : 0;
+
+    // Preserve correctness if offsets arrive out of order.
+    if (safeOffset < cursor) {
+      return position(source, safeOffset);
+    }
+
+    while (cursor < safeOffset) {
+      if (source.charCodeAt(cursor) === 10) {
+        line++;
+        lineStart = cursor + 1;
+      }
+
+      cursor++;
+    }
+
+    return {
+      line,
+      column: safeOffset - lineStart + 1
+    };
+  };
+}
+
+
 export function frameworkFor(file) {
   const p = file.replaceAll('\\', '/').toLowerCase();
 
@@ -185,11 +225,12 @@ export async function analyzeFiles(
     });
 
     const framework = frameworkFor(file);
+    const locate = createPositionTracker(sql);
 
     let inTransaction = false;
 
     for (const { stmt, offset } of parsed) {
-      const loc = position(sql, offset);
+      const loc = locate(offset);
       const transaction = txType(stmt);
 
       // Track explicit transaction boundaries.

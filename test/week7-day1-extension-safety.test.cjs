@@ -72,11 +72,13 @@ function harness(settings = {}) {
       onDidChangeTextDocument(cb) { events.change = cb; return { dispose() {} }; }
     }
   };
-  function spawnMock() {
+  function spawnMock(...args) {
+    if (settings.failNextSpawn) { settings.failNextSpawn = false; throw new Error("mock launch failure"); }
     const child = new EventEmitter();
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.killed = false;
+    child.file = args[1].at(-1);
     child.kill = () => { child.killed = true; return true; };
     children.push(child);
     return child;
@@ -97,6 +99,7 @@ function harness(settings = {}) {
   }
   return {
     document, events, messages, logs, children,
+    select(doc) { vscode.window.activeTextEditor.document = doc; },
     async lint() {
       await commands.get('pgSafeMigrate.lintFile')();
       return children.at(-1);
@@ -156,10 +159,13 @@ test('superseding a lint cancels the older child and preserves newer diagnostics
   const h = harness();
   try {
     const oldChild = await h.lint();
-    const newChild = await h.lint();
+    await h.lint();
     assert.equal(oldChild.killed, true);
-    h.finish(newChild, 0, report('PG002'));
+    assert.equal(h.children.length, 1);
     h.finish(oldChild, 0, report('PG001'));
+    const newChild = h.children.at(-1);
+    assert.notEqual(newChild, oldChild);
+    h.finish(newChild, 0, report('PG002'));
     assert.deepEqual(h.findings().map(d => d.code), ['PG002']);
   } finally { h.dispose(); }
 });
@@ -172,5 +178,159 @@ test('deactivation kills running lint and prevents late publication', async () =
     assert.equal(child.killed, true);
     h.finish(child, 0, report('PG001'));
     assert.equal(h.findings().length, 0);
+  } finally { h.dispose(); }
+});
+
+function otherDocument(h, name) {
+  const fsPath = path.resolve(__dirname, name + '.sql');
+  return { ...h.document, fileName: fsPath, uri: { scheme: 'file', fsPath, toString() { return fsPath; } } };
+}
+
+test('global limit queues distinct files until close', async () => {
+  const h = harness();
+  try {
+    const first = await h.lint();
+    h.select(otherDocument(h, 'second'));
+    await h.lint();
+    assert.equal(h.children.length, 1);
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 2);
+    h.finish(h.children[1], 0, report('PG002'));
+  } finally { h.dispose(); }
+});
+
+test('closing queued document removes it', async () => {
+  const h = harness();
+  try {
+    const first = await h.lint();
+    const second = otherDocument(h, 'second');
+    h.select(second);
+    await h.lint();
+    h.events.close(second);
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 1);
+  } finally { h.dispose(); }
+});
+
+test('configured concurrency permits two active processes', async () => {
+  const h = harness({ maxConcurrentLints: 2 });
+  try {
+    await h.lint();
+    h.select(otherDocument(h, 'second')); await h.lint();
+    h.select(otherDocument(h, 'third')); await h.lint();
+    assert.equal(h.children.length, 2);
+    h.finish(h.children[0], 0, report('PG001'));
+    assert.equal(h.children.length, 3);
+  } finally { h.dispose(); }
+});
+
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+test('manual requests take priority over queued automatic requests', async () => {
+  const h = harness({ debounceMs: 100 });
+  try {
+    const first = await h.lint();
+    const auto = otherDocument(h, 'auto');
+    const manual = otherDocument(h, 'manual');
+    h.events.open(auto);
+    await wait(150);
+    h.select(manual); await h.lint();
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children[1].file, manual.uri.fsPath);
+    h.finish(h.children[1], 0, report('PG002'));
+    assert.equal(h.children[2].file, auto.uri.fsPath);
+  } finally { h.dispose(); }
+});
+
+test('oversized saved file is rejected before spawn', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-safe-test-'));
+  const h = harness({ maxFileSizeMB: 1 });
+  try {
+    const file = path.join(dir, 'large.sql');
+    fs.writeFileSync(file, Buffer.alloc(1024 * 1024 + 1, 32));
+    const doc = { ...h.document, fileName: file, uri: { scheme: 'file', fsPath: file, toString() { return file; } } };
+    h.select(doc); await h.lint();
+    assert.equal(h.children.length, 0);
+    assert.match(h.logs.join('\n'), /exceeds 1 MiB/);
+  } finally { h.dispose(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('duplicate queued requests retain latest version only', async () => {
+  const h = harness();
+  try {
+    const first = await h.lint();
+    const doc = otherDocument(h, 'duplicate');
+    h.select(doc); await h.lint(); doc.version++; await h.lint();
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 2);
+    assert.equal(h.children[1].file, doc.uri.fsPath);
+    h.finish(h.children[1], 0, report('PG002'));
+    assert.equal(h.children.length, 2);
+  } finally { h.dispose(); }
+});
+
+test('editing queued document cancels outdated analysis', async () => {
+  const h = harness();
+  try {
+    const first = await h.lint();
+    const doc = otherDocument(h, 'edited');
+    h.select(doc); await h.lint(); doc.version++; doc.isDirty = true;
+    h.events.change({ document: doc });
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 1);
+  } finally { h.dispose(); }
+});
+
+test('synchronous spawn failure does not block next queued request', async () => {
+  const settings = {}; const h = harness(settings);
+  try {
+    const first = await h.lint();
+    h.select(otherDocument(h, 'failure')); await h.lint();
+    const next = otherDocument(h, 'next'); h.select(next); await h.lint();
+    settings.failNextSpawn = true;
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 2);
+    assert.equal(h.children[1].file, next.uri.fsPath);
+    assert.match(h.logs.join('\n'), /mock launch failure/);
+  } finally { h.dispose(); }
+});
+
+test('timeout holds slot until child closes', async () => {
+  const h = harness({ timeoutMs: 1000 });
+  try {
+    const first = await h.lint();
+    h.select(otherDocument(h, 'waiting')); await h.lint();
+    await wait(1100);
+    assert.equal(first.killed, true); assert.equal(h.children.length, 1);
+    h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 2);
+    assert.equal(h.findings().length, 0);
+  } finally { h.dispose(); }
+});
+
+test('shutdown clears pending requests', async () => {
+  const h = harness();
+  try {
+    const first = await h.lint();
+    h.select(otherDocument(h, 'waiting')); await h.lint();
+    h.dispose(); h.finish(first, 0, report('PG001'));
+    assert.equal(h.children.length, 1);
+  } finally { h.dispose(); }
+});
+
+test('UTF-8 split across stdout chunks is preserved', async () => {
+  const h = harness();
+  try {
+    const child = await h.lint();
+    const payload = report('PG001'); payload.findings[0].message = 'Risk: café';
+    const bytes = Buffer.from(JSON.stringify(payload));
+    const split = bytes.indexOf(Buffer.from('é')) + 1;
+    child.stdout.emit('data', bytes.subarray(0, split));
+    child.stdout.emit('data', bytes.subarray(split));
+    h.finish(child);
+    assert.equal(h.findings()[0].message, 'PG001: Risk: café');
   } finally { h.dispose(); }
 });

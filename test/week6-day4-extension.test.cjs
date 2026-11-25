@@ -302,12 +302,15 @@ test('superseded CLI process cannot overwrite newer diagnostics', async () => {
 
   try {
     const oldChild = await h.lint();
-    const newChild = await h.lint();
+    await h.lint();
 
     assert.equal(oldChild.killed, true);
-
-    h.finish(newChild, 0, report('PG002'));
+    assert.equal(h.children.length, 1);
     h.finish(oldChild, 0, report('PG001'));
+    assert.equal(h.findings().length, 0);
+    assert.equal(h.children.length, 2);
+    const newChild = h.children[1];
+    h.finish(newChild, 0, report('PG002'));
 
     assert.equal(h.findings().length, 1);
     assert.equal(h.findings()[0].code, 'PG002');

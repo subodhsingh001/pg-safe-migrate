@@ -1,4 +1,3 @@
-
 const vscode = require('vscode');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
@@ -6,6 +5,9 @@ const fs = require('node:fs');
 
 const timers = new Map();
 const running = new Map();
+const pending = new Map();
+let stopping = false;
+let draining = false;
 const lastFindings = new Map();
 
 let collection;
@@ -113,10 +115,10 @@ function cancel(uri) {
   if (timers.has(key)) clearTimeout(timers.get(key));
   timers.delete(key);
 
+  pending.delete(key);
   const task = running.get(key);
   if (!task) return;
   task.cancelled = true;
-  running.delete(key);
   if (task.timeout) {
     clearTimeout(task.timeout);
     task.timeout = null;
@@ -124,12 +126,61 @@ function cancel(uri) {
   try { task.child.kill(); } catch { /* Already exited. */ }
 }
 
+function limit() {
+  const n = Number(settings().get('maxConcurrentLints', 1));
+  return Number.isFinite(n) ? Math.max(1, Math.min(4, Math.floor(n))) : 1;
+}
+
+function drain() {
+  if (stopping || draining) return;
+  draining = true;
+  try {
+    while (running.size < limit()) {
+      const eligible = [...pending.entries()].filter(([key]) => !running.has(key));
+      const next = eligible.find(([, request]) => request.interactive) || eligible[0];
+      if (!next) break;
+      const [key, request] = next;
+      pending.delete(key);
+      const { document, interactive, version } = request;
+      if (document.isClosed || document.isDirty || document.version !== version) continue;
+      startLint(document, interactive);
+    }
+  } finally { draining = false; }
+}
+
 function lint(document, interactive = false) {
+  if (stopping || !isSql(document)) return;
+  const key = document.uri.toString();
+  cancel(document.uri);
+  pending.set(key, { document, interactive, version: document.version });
+  drain();
+}
+
+function startLint(document, interactive = false) {
   if (!isSql(document)) return;
 
   const key = document.uri.toString();
 
-  cancel(document.uri);
+  const configured = Number(settings().get('maxFileSizeMB', 2));
+  const maxMB = Number.isFinite(configured) ? Math.max(1, Math.min(16, configured)) : 2;
+  try {
+    if (fs.statSync(document.uri.fsPath).size > maxMB * 1024 * 1024) {
+      const message = `SQL file exceeds ${maxMB} MiB safety limit`;
+      output.appendLine(message);
+      lastFindings.delete(key);
+      collection.delete(document.uri);
+      if (interactive) vscode.window.showErrorMessage(message);
+      return;
+    }
+  } catch (err) {
+    // Missing files are handled by the CLI; test mocks may use virtual paths.
+    if (err.code !== 'ENOENT') {
+      output.appendLine(`Unable to inspect SQL file: ${err.message}`);
+      lastFindings.delete(key);
+      collection.delete(document.uri);
+      return;
+    }
+  }
 
   const cli = findCli(document.uri.fsPath);
 
@@ -206,8 +257,8 @@ function lint(document, interactive = false) {
     : 30000;
   const MAX_STDOUT_BYTES = 16 * 1024 * 1024;
   const MAX_STDERR_BYTES = 1024 * 1024;
-  let stdout = '';
-  let stderr = '';
+  const stdoutChunks = [];
+  const stderrChunks = [];
   let stdoutBytes = 0;
   let stderrBytes = 0;
   let spawnFailed = false;
@@ -226,21 +277,25 @@ function lint(document, interactive = false) {
   }, timeoutMs);
 
   child.stdout.on('data', chunk => {
+    if (task.cancelled || task.timedOut || task.outputExceeded) return;
+    chunk = Buffer.from(chunk);
     stdoutBytes += chunk.length;
     if (stdoutBytes > MAX_STDOUT_BYTES) {
       stopForOutputLimit();
       return;
     }
-    if (!task.outputExceeded) stdout += chunk.toString();
+    if (!task.outputExceeded) stdoutChunks.push(chunk);
   });
 
   child.stderr.on('data', chunk => {
+    if (task.cancelled || task.timedOut || task.outputExceeded) return;
+    chunk = Buffer.from(chunk);
     stderrBytes += chunk.length;
     if (stderrBytes > MAX_STDERR_BYTES) {
       stopForOutputLimit();
       return;
     }
-    if (!task.outputExceeded) stderr += chunk.toString();
+    if (!task.outputExceeded) stderrChunks.push(chunk);
   });
 
   child.on('error', err => {
@@ -248,13 +303,17 @@ function lint(document, interactive = false) {
     if (!task.cancelled) output.appendLine(`Node launch error: ${err.message}`);
   });
 
-  child.on('close', code => {
+  child.once('close', code => {
+    try {
     if (task.timeout) {
       clearTimeout(task.timeout);
       task.timeout = null;
     }
-    if (task.cancelled || running.get(key) !== task) return;
+    if (running.get(key) !== task) return;
     running.delete(key);
+    if (task.cancelled || stopping) return;
+    const stdout = Buffer.concat(stdoutChunks).toString();
+    const stderr = Buffer.concat(stderrChunks).toString();
 
     function fail(message) {
       output.appendLine(`Lint failed: ${message}`);
@@ -297,6 +356,7 @@ function lint(document, interactive = false) {
     } catch (err) {
       fail(err.message);
     }
+    } finally { drain(); }
   });
 }
 
@@ -324,6 +384,7 @@ function schedule(document) {
 }
 
 function activate(context) {
+  stopping = false;
   collection = vscode.languages.createDiagnosticCollection(
     'pg-safe-migrate'
   );
@@ -480,6 +541,8 @@ function activate(context) {
 }
 
 function deactivate() {
+  stopping = true;
+  pending.clear();
   for (const timer of timers.values()) {
     clearTimeout(timer);
   }
