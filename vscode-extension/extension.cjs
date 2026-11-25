@@ -206,6 +206,12 @@ function startLint(document, interactive = false) {
     document.uri.fsPath
   ];
 
+  // Only load a config from the trusted workspace containing this document.
+  const folder = vscode.workspace.getWorkspaceFolder?.(document.uri);
+  if (folder && vscode.workspace.isTrusted === true) {
+    const configPath = path.join(folder.uri.fsPath, 'pg-safe-migrate.config.json');
+    if (fs.existsSync(configPath)) args.push('--config', configPath);
+  }
   const documentVersion = document.version;
 
   output.appendLine(`Linting: ${document.uri.fsPath}`);
@@ -338,6 +344,13 @@ function startLint(document, interactive = false) {
       if (!Array.isArray(findings)) throw new Error('CLI JSON has no findings array');
       if (document.isClosed || document.isDirty || document.version !== documentVersion) return;
 
+      const audit = report?.suppression?.summary;
+      if (audit) {
+        for (const key of ['suppressed','rejected','unused','scanErrors']) {
+          if (!Number.isSafeInteger(audit[key]) || audit[key] < 0) throw new Error('Invalid suppression audit summary');
+        }
+        output.appendLine(`Suppression audit: ${audit.suppressed} suppressed, ${audit.rejected} rejected, ${audit.unused} unused, ${audit.scanErrors} scan errors. Suppression is not evidence of migration safety.`);
+      }
       const diagnostics = diagnosticsFor(findings, document);
       lastFindings.set(key, findings);
       collection.set(document.uri, diagnostics);
@@ -345,7 +358,7 @@ function startLint(document, interactive = false) {
       output.appendLine(`Findings: ${findings.length}; errors: ${errors}`);
       if (interactive) {
         vscode.window.showInformationMessage(
-          `PG Safe Migrate: ${findings.length} finding(s), ${errors} error(s).`
+          `PG Safe Migrate: ${findings.length} finding(s), ${errors} error(s)${audit ? `, ${audit.suppressed} suppressed` : ""}.`
         );
       }
     } catch (err) {

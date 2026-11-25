@@ -1,0 +1,11 @@
+{
+  "name": "reviewed-suppression-policy",
+  "blockedRules": ["PG011", "PG023"],
+  "maxRiskScore": 60,
+  "suppression": {
+    "protectedRules": ["PG008"],
+    "maxSuppressedFindings": 5,
+    "failOnRejected": true,
+    "failOnUnused": true
+  }
+}
