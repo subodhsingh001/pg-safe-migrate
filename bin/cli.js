@@ -59,6 +59,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
        config.postgresVersion=version;
      }
      if ((opts.gatePolicy || opts.riskBaseline || opts.writeRiskBaseline || opts.productionContext) && (opts.assess || opts.simulate || opts.migrationsDir || opts.inspectDb)) throw new Error('--gate-policy is for static lint mode only');
+     if (config.suppression?.enabled && (opts.assess || opts.gatePolicy || opts.riskBaseline || opts.writeRiskBaseline || opts.teamPolicy || opts.productionContext)) throw new Error('Inline suppression is not yet supported with assessment, team policy, production context or risk baselines');
      if (opts.assess) {
        const policy = opts.teamPolicy ? loadTeamPolicy(opts.teamPolicy) : null;
        const assessment = await combinedAssessment({ file: opts.simulate, migrationsDir: opts.migrationsDir, baseline: opts.baseline, verifySql: opts.verifySql, postgresVersion: String(opts.postgresVersion ?? '16'), config });
@@ -83,7 +84,9 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      if (gatePolicy?.requireSimulation) throw new Error('requireSimulation requires --assess with a disposable PostgreSQL simulation');
      const files=(opts.changed?getChangedSqlFiles(typeof opts.changed==='string'?opts.changed:undefined):findMigrationFiles(target)).filter(f=>!isExcluded(f,config.exclude));
      const entries=files.map(file=>({file:path.relative(process.cwd(),file)||file,sql:fs.readFileSync(file,'utf8')}));
-     const findings=await analyzeFiles(entries,config,{advisor:opts.advisor});
+     const suppressionAudit = [];
+     const findings=await analyzeFiles(entries,config,{advisor:opts.advisor,suppressionAudit});
+     for (const record of suppressionAudit) console.error('[PG Safe Migrate suppression] ' + JSON.stringify(record));
      const production = opts.productionContext ? productionAssessment(findings, loadProductionContext(opts.productionContext)) : null;
      if (opts.writeRiskBaseline && opts.riskBaseline) throw new Error('Cannot combine --write-risk-baseline and --risk-baseline');
      if (opts.writeRiskBaseline && opts.gatePolicy) throw new Error('Baseline creation cannot be combined with a gate policy');

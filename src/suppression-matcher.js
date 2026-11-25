@@ -3,8 +3,8 @@ import { scanSuppressions } from './suppression.js';
 import { getRule } from './rules/ruleCatalog.js';
 
 // Preview only: no findings are removed and no CLI policy is changed.
-export async function matchSuppressions(sql) {
-  const statements = await parseSqlFile(sql, { details: true });
+export async function matchSuppressions(sql, parsed) {
+  const statements = parsed ?? await parseSqlFile(sql, { details: true });
   const scan = scanSuppressions(sql);
   const matches = [], rejected = [...scan.invalid];
   let index = 0;
