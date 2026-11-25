@@ -5,7 +5,6 @@ on:
       - '**/*.sql'
 permissions:
   contents: read
-  security-events: write
 jobs:
   migrations:
     runs-on: ubuntu-latest
@@ -13,23 +12,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-      - name: Install pinned migration linter
-        run: npm install --no-save --package-lock=false @subodh001/pg-safe-migrate@2.0.0-rc.2
-      - name: Analyze changed migrations and create SARIF
-        if: github.event_name == 'pull_request'
+          node-version: '22'
+      - name: Check changed SQL
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: |
-          npx pg-safe-migrate --changed "origin/$BASE_REF" --format sarif --output pg-safe-migrate.sarif --fail-on none
-      - name: Upload code scanning report
-        if: always() && hashFiles('pg-safe-migrate.sarif') != ''
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: pg-safe-migrate.sarif
-      - name: Enforce migration policy
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: npx pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
+        run: npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error

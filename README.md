@@ -1,141 +1,76 @@
-> **CLI documentation: v2.6.0.** **VS Code extension documentation: v0.7.0.** Check npm and the Marketplace for available versions. Migration analysis does not guarantee zero downtime.
-
-# pg-safe-migrate
+# PG Safe Migrate
 
 **Catch risky PostgreSQL migrations before they reach production.**
 
-An open-source, AST-based PostgreSQL migration risk linter for **Prisma, Drizzle, Flyway, and raw SQL**.
+Open-source, AST-based migration linting for Prisma, Drizzle, Flyway and raw SQL. Detect destructive changes, locking risks and transaction hazards before deployment.
 
-Detect risky PostgreSQL DDL patterns and provide additional framework-specific migration advisories.
+[![npm version](https://img.shields.io/npm/v/@subodh001/pg-safe-migrate)](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) [![VS Code](https://img.shields.io/visual-studio-marketplace/v/sukoaa.pg-safe-migrate-vscode)](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-**Features:** PostgreSQL AST parsing · migration risk diagnostics (see rule coverage below) · Git-diff mode · JSON/SARIF · configurable severity · optional advisor · GitHub Actions
+[Product website](https://www.sukoaa.com/pg-safe-migrate) · [Rule reference](docs/RULES.md) · [VS Code](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
-> **Important:** This tool identifies configured migration risks. It does not guarantee zero downtime.
-
-## Demo
-
-See how `pg-safe-migrate` catches an unsafe PostgreSQL migration and suggests a safer alternative.
-
-![pg-safe-migrate CLI demonstration](https://raw.githubusercontent.com/subodhsingh001/pg-safe-migrate/main/assets/pg-safe-migrate-demo.gif)
-
-### Example
-
-Unsafe migration:
-
-```sql
-CREATE INDEX idx_users_email ON users(email);
-```
-
-Detected issue:
-
-```text
-[PG001] CREATE INDEX on "users" acquires a SHARE lock and blocks writes.
-
-Fix: Use CREATE INDEX CONCURRENTLY and execute outside a transaction block.
-
-Found 1 blocking migration issue(s).
-```
-
-Safer alternative:
-
-```sql
-CREATE INDEX CONCURRENTLY idx_users_email ON users(email);
-```
-
-`CREATE INDEX CONCURRENTLY` must run outside a transaction block.
-
-
-## Week 3: opt-in CI policy gate
-
-Run a deterministic, policy-driven static lint check in CI:
-
-```bash
-node bin/cli.js db/migrations --gate-policy examples/week3-gate-policy.json --fail-on none
-```
-
-The gate can block selected `PGxxx` rules, excessive warnings, and heuristic risk scores. It reports a block to stderr and exits with code `1`; malformed configuration exits `2`. This feature was introduced in CLI v2.5.0. See [Week 3 implementation notes](WEEK3-DAY1-IMPLEMENTED.md).
-
-[Install from npm](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [Install the VS Code extension](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
-
-## Adoption and developer resources
-
-- [Safe onboarding and CI troubleshooting](docs/ADOPTION-GUIDE.md)
-- [Short demonstration recording script](docs/DEMO-SCRIPT.md)
-- [Proposed npm and VS Code Marketplace copy](docs/MARKETPLACE-COPY.md)
-
-**Release note:** The Week 3 policy, baseline, production-context, and PR reporting features were introduced in npm v2.5.0. Review the policy and baseline before enabling blocking checks; passing a static gate is not a downtime guarantee.
-
-## Installation
-
-Install as a development dependency:
-
-```bash
-npm install --save-dev @subodh001/pg-safe-migrate
-```
-
-Or execute the published package without installing it in your project:
-
-```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --help
-```
+![CLI demonstration](https://raw.githubusercontent.com/subodhsingh001/pg-safe-migrate/main/assets/pg-safe-migrate-demo.gif)
 
 ## Quick start
 
-### Automatically detect migrations
+Requires Node.js 18 or later; use a maintained Node.js release for new installations.
 
-```bash
-npx pg-safe-migrate
+```sh
+npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate
 ```
 
-The CLI searches these directories:
+Or install in your project:
 
-- `prisma/migrations`
-- `drizzle`
-- `migrations`
-- `db/migrations`
-- `db/migration`
-- `sql/migrations`
-- `sql`
-
-### Prisma
-
-```bash
-npx pg-safe-migrate prisma/migrations
+```sh
+npm install --save-dev @subodh001/pg-safe-migrate
+npx --no-install pg-safe-migrate prisma/migrations --advisor
 ```
 
-### Drizzle
+Use `drizzle`, `db/migrations` or a specific SQL file instead of `prisma/migrations`. With no path, the CLI detects common migration directories.
 
-```bash
-npx pg-safe-migrate drizzle
+### Example
+
+```sql
+ALTER TABLE users DROP COLUMN email;
 ```
 
-### Raw SQL
-
-```bash
-npx pg-safe-migrate db/migrations
+```text
+unsafe.sql:1:1 [PG002] error: Dropping column "users.email" can break older application instances.
 ```
 
-### Check a specific migration
+Remove application references before dropping the column in a later deployment. A passing lint check is not a guarantee of zero downtime.
 
-```bash
-npx pg-safe-migrate path/to/migration.sql
+## GitHub Actions
+
+Save as `.github/workflows/migration-lint.yml`:
+
+```yaml
+name: PostgreSQL migration safety
+on:
+  pull_request:
+    paths:
+      - '**/*.sql'
+permissions:
+  contents: read
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check changed SQL
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
 ```
 
-### Check changed migrations only
+Start with reporting-only mode (`--fail-on none`) if introducing linting into an existing project. Review findings before enforcing a gate. See the [adoption guide](docs/ADOPTION-GUIDE.md).
 
-```bash
-npx pg-safe-migrate --changed origin/main
-```
-
-Without a base reference, `--changed` checks staged, unstaged, and untracked SQL files. With a base reference, it additionally checks branch changes.
-
-For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub Actions.
-
-## PostgreSQL migration rules
-
-The following rule identifiers are documented for CLI v2.6.0.
-
-23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 are triggered for a configured target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata.
+## What it detects
 
 | ID | Diagnostic | Default | Guidance |
 |---|---|---|---|
@@ -163,7 +98,9 @@ The following rule identifiers are documented for CLI v2.6.0.
 | PG024 | Dropping a constraint | error | Review dependent queries and data-integrity requirements. |
 | PG025 | SET NOT NULL may scan table | error | Backfill and validate a CHECK constraint first where appropriate. |
 
-PG017 also covers Flyway nontransactional execution advice. Rules are configurable using `rules` with `off`, `warning`, or `error`. Static findings are not a downtime guarantee.
+See the [full rule reference](docs/RULES.md) for defaults, version constraints and legacy identifiers. PG013 is superseded by PG025; PG009 and PG018 are unused.
+
+## Reporting and configuration
 
 Example configuration (`pg-safe-migrate.config.json`):
 
@@ -182,213 +119,19 @@ Each finding includes a description of the risk and a suggested safer migration 
 
 A passing result means no configured patterns were detected, not that a migration is guaranteed to be safe.
 
-## GitHub Actions integration
+## Advanced capabilities
 
-Automatically check migration files during pull requests.
-
-Copy the [example consumer workflow](https://github.com/subodhsingh001/pg-safe-migrate/blob/main/examples/consumer-workflow.yml) into your application's repository:
-
-```text
-.github/workflows/pg-safe-migrate.yml
-```
-
-The workflow checks changed SQL migrations so teams can adopt the linter without immediately rewriting historical migrations.
-
-For reproducible builds, pin the package to a reviewed version and upgrade deliberately.
-
-## Verify CLI v2.6.0 after publication
-
-From a clean directory, run:
-
-```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --help
-```
-
-Create a file named `unsafe.sql`:
-
-```sql
-CREATE INDEX idx_users_email ON users(email);
-```
-
-Then execute:
-
-```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate unsafe.sql
-```
-
-Expected behavior: PG001 is reported and the CLI exits with code `1`.
-
-The included `examples/safe.sql` demonstrates concurrent index creation and should pass PG001.
+- [Advanced usage, simulation, database inspection and limitations](docs/advanced.md)
+- [Adoption and CI troubleshooting](docs/ADOPTION-GUIDE.md)
+- [Release history](CHANGELOG.md)
+- [Verification commands](ALL-MILESTONES-TESTING.md)
 
 ## Development
 
-Clone the repository:
-
-```bash
-git clone https://github.com/subodhsingh001/pg-safe-migrate.git
-cd pg-safe-migrate
-```
-
-Install dependencies:
-
-```bash
+```sh
 npm ci
-```
-
-Run tests:
-
-```bash
-npm test
-```
-
-Test the rule engine:
-
-```bash
-node bin/cli.js examples/unsafe.sql
-```
-
-Check the npm package:
-
-```bash
+npm run test:release
 npm pack --dry-run
 ```
 
-## CLI v2.6.0
-
-Version v2.6.0 adds improved SQL positions, transaction tracking and rule catalog metadata. See [CHANGELOG.md](CHANGELOG.md).
-
-- Expanded PostgreSQL migration risk checks and framework advisories
-- PostgreSQL AST-based parsing
-- Prisma and Drizzle migration directory detection
-- Git-diff mode
-- GitHub Actions support
-- JSON/SARIF reports and optional advisor
-- Configurable severity, exclusions, and PostgreSQL-version guidance
-- Actionable migration recommendations
-
-[View npm package](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) · [View GitHub releases](https://github.com/subodhsingh001/pg-safe-migrate/releases) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
-
-## Limitations
-
-`pg-safe-migrate` is a static AST-based PostgreSQL migration linter. Static linting is not a migration execution simulator.
-
-### Parser and diagnostic capabilities
-
-Version v2.6.0 includes:
-
-- Unicode-aware diagnostic positions with UTF-16 editor coordinates.
-- Windows CRLF and Unix LF compatibility.
-- Single-line and nested block comment handling.
-- Dollar-quoted and escaped string handling.
-- Explicit transaction tracking, including savepoints and chained transactions.
-- PostgreSQL syntax error detection.
-
-These parser improvements are included in v2.6.0. Large SQL inputs can consume substantial memory; static analysis has no hard process memory cap.
-
-### Static analysis boundaries
-
-Static linting does not:
-
-- Connect to your production database.
-- Estimate actual lock waiting times.
-- Validate rollback procedures.
-- Inspect live database schemas.
-- Comprehensively analyze SQL inside PL/pgSQL functions, stored procedures or anonymous DO blocks.
-- Resolve dynamically generated SQL.
-- Analyze SQL embedded inside JavaScript or TypeScript files.
-- Detect every application-managed or ORM-managed transaction.
-- Guarantee zero downtime or production migration safety.
-
-Some flagged operations may be acceptable under controlled conditions. Some unflagged operations may still cause downtime.
-
-Optional database inspection and disposable PostgreSQL simulation are separate capabilities with their own limitations.
-
-Always consider PostgreSQL version, table size, transaction behavior, lock timeouts, long-running transactions and application deployment sequencing.
-
-Validate migrations against a representative PostgreSQL environment before production deployment.
-
-## Validation and real ORM runners
-
-The repository includes a curated SQL regression suite (`test/real-world-cases.test.js`) and an opt-in integration runner (`scripts/orm-runner/verify.mjs`) using a disposable PostgreSQL database. On 2026-11-17 the maintainer verified that Prisma 6.19.x `migrate deploy` applied a **standalone** `CREATE INDEX CONCURRENTLY` migration; the tested Drizzle ORM 0.44.x node-postgres migrator rejected the same operation inside its transaction with PostgreSQL error `25001`. The runner asserts both outcomes and checks that temporary schemas are cleaned up. See `scripts/orm-runner/README.md` and `RELEASE-VERIFICATION.md`. These observations are version- and runner-specific and do not establish a production false-positive rate.
-
-## Contributing
-
-Contributions, bug reports, PostgreSQL edge cases, and suggestions for additional safety rules are welcome.
-
-Open an issue or submit a pull request on GitHub.
-
-## License
-
-MIT License.
-
-## v2.0 features
-
-- `--postgres-version 10` enables PostgreSQL-10-specific default-column rewrite warnings; version 11+ does not trigger that rule. This is a targeted version check, not complete PostgreSQL-version simulation.
-- `--advisor` gives Prisma/Drizzle/raw-SQL-aware deployment guidance. Recommendations are advisory and do not inspect the live database.
-- Cross-file analysis checks files in lexicographic order and warns on selected operations involving tables changed earlier. This is a heuristic, not a dependency graph.
-- Transaction analysis uses parsed SQL statements, avoiding comment/string false positives from keyword matching. It cannot know whether an external ORM runner wraps a migration in a transaction.
-- JSON and SARIF outputs include source locations when the PostgreSQL parser supplies statement offsets.
-- `examples/consumer-workflow.yml` illustrates GitHub code-scanning SARIF upload and policy enforcement. GitHub code-scanning availability and permissions depend on repository settings and plan.
-
-### Examples
-
-```bash
-node bin/cli.js prisma/migrations --postgres-version 16 --advisor
-node bin/cli.js db/migrations --format json --output report.json
-node bin/cli.js --changed origin/main --format sarif --output report.sarif --fail-on none
-```
-
-### Known gaps
-
-The analyzer does not connect to PostgreSQL, determine real table sizes, model application compatibility, or prove migrations are safe. Prisma and Drizzle transaction behavior depends on the actual runner and configuration. SARIF code-scanning upload is optional and needs GitHub security permissions.
-
-### Experimental: read-only database catalog snapshot
-
-The opt-in `--inspect-db` mode returns PostgreSQL major version, approximate table row counts and table sizes as JSON. It **does not execute migrations** or assess production safety. Install the optional `pg` dependency in your project and provide a least-privilege connection URL:
-
-```powershell
-npm install pg
-$env:DATABASE_URL = 'postgresql://readonly_user:password@127.0.0.1:5432/testdb'
-node bin/cli.js --inspect-db
-```
-
-This mode uses a read-only transaction, catalog queries, a five-second statement timeout and a 50-table default limit. Do not use privileged production credentials. Real-database integration testing remains outstanding.
-
-### Experimental disposable PostgreSQL simulation
-
-To check whether a SQL migration executes against an **empty disposable PostgreSQL database** (requires local Docker and a locally available PostgreSQL image):
-
-```sh
-node bin/cli.js --simulate examples/safe.sql --postgres-version 16
-node bin/cli.js --simulate examples/unsafe.sql --postgres-version 16 --simulate-timeout 60
-```
-
-The simulator launches a new `postgres:14` through `postgres:18` container, disables its network, limits memory/CPU/processes, does not mount host files or use `DATABASE_URL`, runs SQL via `docker exec -i`, and forcibly removes the container afterward. Docker images may be downloaded automatically. **Do not use it as a sandbox for hostile code:** Docker isolation is not a hardened security boundary. Run only migrations from trusted contributors, preferably on a dedicated CI runner. Simulation against an empty database cannot predict production locks, data-dependent failures, rollback success, or downtime. It never runs against a real database. A nonzero exit code indicates SQL execution failure (1) or a tool/runtime error (2).
-
-### Docker simulator with baseline and ordered migrations (experimental)
-
-The simulator starts a disposable PostgreSQL container without published ports or external networking.
-Use a baseline to create tables that a migration expects:
-
-```cmd
-node bin/cli.js --simulate examples/safe.sql --baseline examples/baseline.sql --postgres-version 16
-node bin/cli.js --simulate examples/unsafe.sql --baseline examples/baseline.sql --postgres-version 16
-```
-
-Run all top-level `.sql` files in a folder in lexicographic filename order:
-
-```cmd
-node bin/cli.js --migrations-dir path/to/migrations --baseline examples/baseline.sql --postgres-version 16
-```
-
-Each JSON result contains a `steps` array with distinct `baseline` and `migration` stages. Execution stops on the first failure, and the disposable container is removed. This is a functional smoke test, **not** a guarantee of production safety, downtime, data preservation, or rollback. A successful `unsafe.sql` simulation does not mean the migration is safe.
-
-The directory mode processes only top-level `.sql` files (maximum 100); nested ORM-specific migration directories are not automatically traversed.
-
-## Consolidated experimental development capabilities
-
-See [ALL-MILESTONES-TESTING.md](ALL-MILESTONES-TESTING.md) for exact commands and verification limitations. `--assess` combines lint findings, lock classifications, heuristic risk score, deployment advice, Docker execution, optional `--verify-sql` assertions, and optional `--team-policy` checks. The Docker matrix script covers PostgreSQL 14–18 when Docker is available. `vscode-extension/` provides a standalone VS Code extension; team policy is a local JSON configuration, **not** a hosted team management service.
-
-## Markdown migration report (Week 2 Day 6)
-
-Run `pg-safe-migrate migrations --format markdown --risk --output migration-report.md` to generate an actionable Markdown report with rule IDs, locations, recommended actions, and an optional heuristic risk breakdown. This does not predict production downtime.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). MIT licensed.
