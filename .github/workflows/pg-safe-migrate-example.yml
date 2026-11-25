@@ -1,17 +1,13 @@
-
-# Example workflow for projects using PG Safe Migrate.
-# Copy this file into the consuming project's
-# .github/workflows directory.
-#
-# This example assumes:
-# - SQL migrations are in ./migrations
-# - A gate policy exists at ./pg-safe-migrate-policy.json
-# Adjust both paths for your application.
+# Repository-level migration safety verification.
+# Tests the current CLI against committed example migrations.
 
 name: PostgreSQL migration safety
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -24,28 +20,32 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: "22"
 
-      - name: Install PG Safe Migrate
-        run: npm install --no-save @subodh001/pg-safe-migrate@2.5.0
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify CLI version
+        run: node bin/cli.js --version
 
       - name: Check migration safety policy
         run: |
-          npx --no-install pg-safe-migrate migrations \
-            --gate-policy pg-safe-migrate-policy.json \
+          node bin/cli.js examples/migrations \
+            --gate-policy examples/week3-gate-policy.json \
+            --postgres-version 16 \
             --format markdown \
             --output migration-report.md
 
       - name: Upload migration report
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: migration-safety-report
           path: migration-report.md
