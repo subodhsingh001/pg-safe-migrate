@@ -8,10 +8,14 @@ const definitions = [
   ['PG006','Renaming an object','compatibility','ERROR',null,'Use an expand/contract deployment.'],
   ['PG007','Dropping index without CONCURRENTLY','locking','ERROR',null,'Use DROP INDEX CONCURRENTLY where supported.'],
   ['PG008','Concurrent index operation inside transaction','compatibility','ERROR',null,'Run outside BEGIN/COMMIT.'],
+  ['PG010','Adding UNIQUE constraint','locking','ERROR',null,'Consider a concurrent unique index and attach it where applicable.'],
   ['PG011','Dropping a table','data-loss','ERROR',null,'Verify retention and application dependencies.'],
+  ['PG012','Adding validated CHECK constraint','constraint','ERROR',null,'Add NOT VALID and validate separately.'],
+  ['PG013','Legacy SET NOT NULL diagnostic (superseded by PG025)','constraint','ERROR',null,'Validate an equivalent CHECK constraint first.'],
+  ['PG014','Adding column with default on PostgreSQL 10','rewrite','ERROR',null,'Use controlled backfill or evaluate upgrading PostgreSQL.'],
   ['PG015','Prisma concurrent index migration','integration','WARNING',null,'Use a separately managed nontransactional migration.'],
   ['PG016','Drizzle concurrent index migration','integration','WARNING',null,'Use a separately managed nontransactional migration.'],
-  ['PG017','Potential cross-file dependency','dependency','WARNING',null,'Review migration order; this is a heuristic.'],
+  ['PG017','Potential cross-file dependency or Flyway transaction advisory','dependency','WARNING',null,'Review migration order; this is a heuristic.'],
   ['PG019','MERGE requires PostgreSQL 15+','version','ERROR',15,'Use a compatible INSERT ... ON CONFLICT pattern where applicable.'],
   ['PG020','UNIQUE NULLS NOT DISTINCT requires PostgreSQL 15+','version','ERROR',15,'Use a version-compatible uniqueness strategy.'],
   ['PG021','Volatile default may rewrite table','rewrite','ERROR',null,'Add column, backfill in batches, then set default.'],
@@ -21,7 +25,7 @@ const definitions = [
   ['PG025','SET NOT NULL may scan table','constraint','WARNING',null,'Backfill and validate a CHECK constraint first where appropriate.']
 ];
 
-export const RULE_CATALOG = Object.freeze(definitions.map(([id,title,category,defaultSeverity,minPostgresVersion,recommendation]) => Object.freeze({id,title,category,defaultSeverity,minPostgresVersion,recommendation})));
+export const RULE_CATALOG = Object.freeze(definitions.map(([id,title,category,defaultSeverity,minPostgresVersion,recommendation]) => Object.freeze({id,title,category,defaultSeverity,defaultCliSeverity: ['PG024','PG025'].includes(id) ? 'ERROR' : defaultSeverity,minPostgresVersion,recommendation})));
 
 export function getRule(id) {
   return RULE_CATALOG.find(rule => rule.id === String(id).toUpperCase()) ?? null;

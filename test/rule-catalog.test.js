@@ -19,3 +19,18 @@ test('catalog CLI supports JSON output', () => {
   const output = execFileSync(process.execPath, ['scripts/rule-catalog.cjs', '--rule', 'PG020', '--json'], { encoding: 'utf8' });
   assert.equal(JSON.parse(output)[0].minPostgresVersion, 15);
 });
+
+test('catalog covers implemented identifiers and default CLI severity', () => {
+  const expected = Array.from({length:25}, (_,i)=>i+1).filter(n=>n!==9 && n!==18).map(n=>`PG${String(n).padStart(3,'0')}`);
+  assert.deepEqual(RULE_CATALOG.map(r=>r.id).sort(), expected);
+  for (const rule of RULE_CATALOG) assert.equal(rule.defaultCliSeverity, ['PG015','PG016','PG017'].includes(rule.id) ? 'WARNING' : 'ERROR');
+  assert.match(getRule('PG013').title, /legacy/i);
+  assert.match(getRule('PG017').title, /Flyway/i);
+});
+
+test('raw severity metadata preserves engine warnings', () => {
+  for (const id of ['PG024', 'PG025']) {
+    assert.equal(getRule(id).defaultSeverity, 'WARNING');
+    assert.equal(getRule(id).defaultCliSeverity, 'ERROR');
+  }
+});

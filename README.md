@@ -4,11 +4,11 @@
 
 **Catch risky PostgreSQL migrations before they reach production.**
 
-An open-source, AST-based PostgreSQL migration risk linter for **Prisma, Drizzle, and raw SQL**.
+An open-source, AST-based PostgreSQL migration risk linter for **Prisma, Drizzle, Flyway, and raw SQL**.
 
 Detect risky PostgreSQL DDL patterns and provide additional framework-specific migration advisories.
 
-**Features:** PostgreSQL AST parsing · PG001–PG017 identifiers (see rule coverage below) · Git-diff mode · JSON/SARIF · configurable severity · optional advisor · GitHub Actions
+**Features:** PostgreSQL AST parsing · migration risk diagnostics (see rule coverage below) · Git-diff mode · JSON/SARIF · configurable severity · optional advisor · GitHub Actions
 
 > **Important:** This tool identifies configured migration risks. It does not guarantee zero downtime.
 
@@ -16,7 +16,7 @@ Detect risky PostgreSQL DDL patterns and provide additional framework-specific m
 
 See how `pg-safe-migrate` catches an unsafe PostgreSQL migration and suggests a safer alternative.
 
-![pg-safe-migrate CLI demonstration](assets/pg-safe-migrate-demo.gif)
+![pg-safe-migrate CLI demonstration](https://raw.githubusercontent.com/subodhsingh001/pg-safe-migrate/main/assets/pg-safe-migrate-demo.gif)
 
 ### Example
 
@@ -93,6 +93,9 @@ The CLI searches these directories:
 - `drizzle`
 - `migrations`
 - `db/migrations`
+- `db/migration`
+- `sql/migrations`
+- `sql`
 
 ### Prisma
 
@@ -130,31 +133,37 @@ For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub A
 
 ## PostgreSQL migration rules
 
-| Rule | Detected pattern | Potential risk |
-|---|---|---|
-| **PG001** | CREATE INDEX without CONCURRENTLY | Blocks writes during index creation |
-| **PG002** | DROP COLUMN | Breaks older application versions |
-| **PG003** | ALTER COLUMN TYPE | Strong locks and possible table rewrites |
-| **PG004** | ADD COLUMN NOT NULL without DEFAULT | Backfill and compatibility risks |
-| **PG005** | ADD FOREIGN KEY without NOT VALID | Validation may block writes |
-| **PG006** | RENAME | Breaks applications expecting old names |
+The development branch documents the following identifiers; this table is not a certification of the published npm artifact.
 
-Additional rule IDs in v2.0.0:
+23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 require a target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata.
 
-| Rule | Detected pattern | Interpretation |
-|---|---|---|
-| **PG007** | DROP INDEX without CONCURRENTLY | Potential blocking |
-| **PG008** | CONCURRENTLY inside an explicit SQL transaction | PostgreSQL rejects this operation |
-| **PG010** | ADD UNIQUE constraint | Potential blocking index build |
-| **PG011** | DROP TABLE | Destructive change |
-| **PG012** | Validated CHECK constraint | May scan existing rows |
-| **PG013** | SET NOT NULL | Strong lock and potential scan |
-| **PG014** | ADD COLUMN with DEFAULT on PostgreSQL 10 | Version-specific rewrite risk |
-| **PG015** | Prisma CONCURRENTLY | Advisory: use a standalone migration; verified with Prisma 6.19.x `migrate deploy` |
-| **PG016** | Drizzle CONCURRENTLY | Advisory: tested Drizzle 0.44.x node-postgres migrator wraps migrations in a transaction, preventing this operation |
-| **PG017** | Cross-file rename/drop dependency | Heuristic advisory |
+| ID | Diagnostic | Default | Guidance |
+|---|---|---|---|
+| PG001 | Non-concurrent index creation | error | Use CREATE INDEX CONCURRENTLY outside a transaction. |
+| PG002 | Dropping a column | error | Deprecate consumers before removing the column. |
+| PG003 | Changing a column type | error | Check binary compatibility; consider expand/backfill/contract. |
+| PG004 | Adding NOT NULL column without default | error | Add nullable, backfill, then enforce NOT NULL. |
+| PG005 | Adding validated foreign key | error | Add NOT VALID then VALIDATE CONSTRAINT separately. |
+| PG006 | Renaming an object | error | Use an expand/contract deployment. |
+| PG007 | Dropping index without CONCURRENTLY | error | Use DROP INDEX CONCURRENTLY where supported. |
+| PG008 | Concurrent index operation inside transaction | error | Run outside BEGIN/COMMIT. |
+| PG010 | Adding UNIQUE constraint | error | Consider a concurrent unique index and attach it where applicable. |
+| PG011 | Dropping a table | error | Verify retention and application dependencies. |
+| PG012 | Adding validated CHECK constraint | error | Add NOT VALID and validate separately. |
+| PG013 | Legacy SET NOT NULL diagnostic (superseded by PG025) | error | Validate an equivalent CHECK constraint first. |
+| PG014 | Adding column with default on PostgreSQL 10 | error | Use controlled backfill or evaluate upgrading PostgreSQL. |
+| PG015 | Prisma concurrent index migration | warning | Use a separately managed nontransactional migration. |
+| PG016 | Drizzle concurrent index migration | warning | Use a separately managed nontransactional migration. |
+| PG017 | Potential cross-file dependency or Flyway transaction advisory | warning | Review migration order; this is a heuristic. |
+| PG019 | MERGE requires PostgreSQL 15+ | error | Use a compatible INSERT ... ON CONFLICT pattern where applicable. |
+| PG020 | UNIQUE NULLS NOT DISTINCT requires PostgreSQL 15+ | error | Use a version-compatible uniqueness strategy. |
+| PG021 | Volatile default may rewrite table | error | Add column, backfill in batches, then set default. |
+| PG022 | SET LOGGED rewrites table | error | Schedule controlled maintenance and evaluate alternatives. |
+| PG023 | TRUNCATE removes table rows | error | Confirm retention, backups and downstream dependencies. |
+| PG024 | Dropping a constraint | error | Review dependent queries and data-integrity requirements. |
+| PG025 | SET NOT NULL may scan table | error | Backfill and validate a CHECK constraint first where appropriate. |
 
-PG009 is not implemented; rule identifiers are not contiguous. PG015–PG017 default to warnings, including when the standard global severity is `error`. Override an individual advisory with `rules.PG015`, `rules.PG016`, or `rules.PG017` in the configuration. `--fail-on error` only determines the CLI exit threshold, not rule classification.
+PG017 also covers Flyway nontransactional execution advice. Rules are configurable using `rules` with `off`, `warning`, or `error`. Static findings are not a downtime guarantee.
 
 Example configuration (`pg-safe-migrate.config.json`):
 
@@ -167,7 +176,7 @@ Example configuration (`pg-safe-migrate.config.json`):
 }
 ```
 
-Report options: `--format text|json|sarif`, `--output <file>`, `--advisor`, `--postgres-version <major>`, and `--fail-on warning|error|none`.
+Report options: `--format text|json|sarif|markdown`, `--output <file>`, `--advisor`, `--postgres-version <major>`, and `--fail-on warning|error|none`.
 
 Each finding includes a description of the risk and a suggested safer migration approach.
 
@@ -204,7 +213,7 @@ CREATE INDEX idx_users_email ON users(email);
 Then execute:
 
 ```bash
-npx --yes --package=@subodh001/pg-safe-migrate@2.0.0 pg-safe-migrate unsafe.sql
+npx --yes --package=@subodh001/pg-safe-migrate@2.5.0 pg-safe-migrate unsafe.sql
 ```
 
 Expected behavior: PG001 is reported and the CLI exits with code `1`.
@@ -246,7 +255,7 @@ npm pack --dry-run
 
 ## Current release
 
-**v2.0.0**
+**v2.5.0 (published CLI)**
 
 - Expanded PostgreSQL migration risk checks and framework advisories
 - PostgreSQL AST-based parsing
@@ -378,7 +387,7 @@ The directory mode processes only top-level `.sql` files (maximum 100); nested O
 
 ## Consolidated experimental development capabilities
 
-See [ALL-MILESTONES-TESTING.md](ALL-MILESTONES-TESTING.md) for exact commands and verification limitations. `--assess` combines lint findings, lock classifications, heuristic risk score, deployment advice, Docker execution, optional `--verify-sql` assertions, and optional `--team-policy` checks. The Docker matrix script covers PostgreSQL 14–18 when Docker is available. `vscode-extension/` is a local VS Code extension prototype; team policy is a local JSON configuration, **not** a hosted team management service.
+See [ALL-MILESTONES-TESTING.md](ALL-MILESTONES-TESTING.md) for exact commands and verification limitations. `--assess` combines lint findings, lock classifications, heuristic risk score, deployment advice, Docker execution, optional `--verify-sql` assertions, and optional `--team-policy` checks. The Docker matrix script covers PostgreSQL 14–18 when Docker is available. `vscode-extension/` provides a standalone VS Code extension; team policy is a local JSON configuration, **not** a hosted team management service.
 
 ## Markdown migration report (Week 2 Day 6)
 

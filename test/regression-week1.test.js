@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parseSqlFile } from '../src/parser.js';
 import { lintStatements } from '../src/engine.js';
+import { analyzeFiles } from '../src/analysis.js';
 import { RULE_CATALOG } from '../src/rules/ruleCatalog.js';
 
 const fixture = (name) => readFile(new URL(`./fixtures/regression/${name}`, import.meta.url), 'utf8');
@@ -59,4 +60,17 @@ test('new rule findings have matching catalog metadata and valid severities', as
 
 test('catalog has no duplicate rule IDs', () => {
   assert.equal(new Set(RULE_CATALOG.map(rule => rule.id)).size, RULE_CATALOG.length);
+});
+
+test('CLI severity matches catalog and respects overrides', async () => {
+  const entries = [{file: 'migration.sql', sql: await fixture('02-operational-risks.sql')}];
+  const findings = await analyzeFiles(entries, {postgresVersion: 16});
+  for (const id of ['PG021','PG022','PG023','PG024','PG025']) {
+    const finding = findings.find(f => f.ruleId === id);
+    assert.ok(finding, id);
+    assert.equal(finding.severity.toUpperCase(), RULE_CATALOG.find(r => r.id === id).defaultCliSeverity);
+  }
+  const overridden = await analyzeFiles(entries, {postgresVersion: 16, rules: {PG024: 'warning', PG025: 'off'}});
+  assert.equal(overridden.find(f => f.ruleId === 'PG024')?.severity, 'warning');
+  assert.ok(!overridden.some(f => f.ruleId === 'PG025'));
 });

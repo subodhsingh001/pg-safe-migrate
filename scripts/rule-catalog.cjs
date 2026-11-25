@@ -19,5 +19,5 @@
     return;
   }
   if (json) console.log(JSON.stringify(matches, null, 2));
-  else for (const rule of matches) console.log(`${rule.id} [${rule.defaultSeverity}] ${rule.title}\n  ${rule.recommendation}`);
+  else for (const rule of matches) console.log(`${rule.id} [${rule.defaultCliSeverity}] ${rule.title}\n  ${rule.recommendation}`);
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

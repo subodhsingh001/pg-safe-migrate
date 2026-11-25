@@ -52,7 +52,11 @@
     "scripts/orm-runner/package.json",
     "scripts/orm-runner/package-lock.json",
     "scripts/orm-runner/README.md",
-    "ALL-MILESTONES-TESTING.md"
+    "ALL-MILESTONES-TESTING.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "docs/RULES.md"
   ],
   "repository": {
     "type": "git",
