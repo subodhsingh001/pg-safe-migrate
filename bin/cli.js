@@ -18,7 +18,7 @@ import { toJson, toSarif, toMarkdownReport } from '../src/reports.js';
 import { inspectDatabaseUrl } from '../src/db-inspect.js';
 import { simulateSqlFile } from '../src/simulator.js';
 import { combinedAssessment } from '../src/combined.js';
-import { loadTeamPolicy, assessTeamPolicy, assessLintPolicy, applySuppressionPolicy, enforceSuppressionAudit } from '../src/team-policy.js';
+import { loadTeamPolicy, assessTeamPolicy, assessLintPolicy, validateGateConfig, applySuppressionPolicy, enforceSuppressionAudit } from '../src/team-policy.js';
 import { loadProductionContext, productionAssessment } from '../src/production-context.js';
 import { createRiskBaseline, loadRiskBaseline, compareRiskBaseline, writeRiskBaseline } from '../src/risk-baseline.js';
 
@@ -63,6 +63,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      if (config.suppression?.enabled && (opts.assess || opts.teamPolicy || ((opts.riskBaseline || opts.writeRiskBaseline) && opts.gatePolicy))) throw new Error('Inline suppression is not supported with combined assessment or gate plus risk baseline');
      if (opts.assess) {
        const policy = opts.teamPolicy ? loadTeamPolicy(opts.teamPolicy) : null;
+       validateGateConfig(config, policy);
        const assessment = await combinedAssessment({ file: opts.simulate, migrationsDir: opts.migrationsDir, baseline: opts.baseline, verifySql: opts.verifySql, postgresVersion: String(opts.postgresVersion ?? '16'), config });
        if (policy) assessment.teamPolicy = assessTeamPolicy(assessment, policy);
        if (opts.output) { fs.mkdirSync(path.dirname(path.resolve(opts.output)), {recursive:true}); fs.writeFileSync(opts.output, JSON.stringify(assessment,null,2)+'\n'); }
@@ -82,6 +83,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
        return;
      }
      const gatePolicy = opts.gatePolicy ? loadTeamPolicy(opts.gatePolicy) : null;
+     validateGateConfig(config, gatePolicy);
      if (gatePolicy?.requireSimulation) throw new Error('requireSimulation requires --assess with a disposable PostgreSQL simulation');
      const files=(opts.changed?getChangedSqlFiles(typeof opts.changed==='string'?opts.changed:undefined):findMigrationFiles(target)).filter(f=>!isExcluded(f,config.exclude));
      const entries=files.map(file=>({file:path.relative(process.cwd(),file)||file,sql:fs.readFileSync(file,'utf8')}));

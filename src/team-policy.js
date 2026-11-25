@@ -9,14 +9,14 @@ export function loadTeamPolicy(file) {
   if (policy.name !== undefined && (typeof policy.name !== 'string' || !policy.name.trim() || policy.name.length > 100)) throw new Error('name must be a nonempty string of at most 100 characters');
   if (policy.maxRiskScore !== undefined && (!Number.isInteger(policy.maxRiskScore) || policy.maxRiskScore < 0 || policy.maxRiskScore > 100)) throw new Error('maxRiskScore must be 0-100');
   if (policy.maxWarnings !== undefined && (!Number.isInteger(policy.maxWarnings) || policy.maxWarnings < 0)) throw new Error('maxWarnings must be >= 0');
-  if (policy.blockedRules !== undefined && (!Array.isArray(policy.blockedRules) || policy.blockedRules.some(x => typeof x !== 'string' || !getRule(x)))) throw new Error('blockedRules must be an array of PG rule IDs');
+  if (policy.blockedRules !== undefined && (!Array.isArray(policy.blockedRules) || policy.blockedRules.some(x => typeof x !== 'string' || !/^PG\d{3}$/.test(x) || !getRule(x)))) throw new Error('blockedRules must be an array of PG rule IDs');
   if (policy.blockedRules && new Set(policy.blockedRules).size !== policy.blockedRules.length) throw new Error('blockedRules must not contain duplicates');
   if (policy.requireSimulation !== undefined && typeof policy.requireSimulation !== 'boolean') throw new Error('requireSimulation must be boolean');
   if (policy.suppression !== undefined) {
     const s = policy.suppression;
     if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error('policy.suppression must be an object');
     for (const key of Object.keys(s)) if (!['protectedRules','maxSuppressedFindings','failOnRejected','failOnUnused'].includes(key)) throw new Error(`Unknown policy suppression key: ${key}`);
-    if (s.protectedRules !== undefined && (!Array.isArray(s.protectedRules) || s.protectedRules.some(id => typeof id !== 'string' || !getRule(id)))) throw new Error('Invalid policy protectedRules');
+    if (s.protectedRules !== undefined && (!Array.isArray(s.protectedRules) || s.protectedRules.some(id => typeof id !== 'string' || !/^PG\d{3}$/.test(id) || !getRule(id)))) throw new Error('Invalid policy protectedRules');
     if (s.maxSuppressedFindings !== undefined && (!Number.isSafeInteger(s.maxSuppressedFindings) || s.maxSuppressedFindings < 0)) throw new Error('Invalid maxSuppressedFindings');
     for (const key of ['failOnRejected','failOnUnused']) if (s[key] !== undefined && typeof s[key] !== 'boolean') throw new Error(`Invalid ${key}`);
   }
@@ -71,4 +71,14 @@ export function enforceSuppressionAudit(gate, policy, audit) {
   if (s.unused && limits.failOnUnused !== false) reasons.push('Unused suppression directives');
   if (s.scanErrors) reasons.push('Suppression scan failed');
   return { ...gate, reasons, passed: reasons.length === 0 };
+}
+
+// CI must supply trusted configuration, policy, target and PostgreSQL version.
+export function validateGateConfig(config, policy) {
+  if (!policy) return;
+  if (config.exclude?.length) throw new Error('Enterprise policy does not allow project exclusions');
+  if (config.severity !== 'error') throw new Error('Enterprise policy requires default error severity');
+  for (const [id, severity] of Object.entries(config.rules ?? {})) {
+    if (severity === 'off' || severity === 'warning') throw new Error(`Enterprise policy does not allow weakening rule ${id}`);
+  }
 }
