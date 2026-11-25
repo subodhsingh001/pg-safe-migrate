@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { suppressionReport, suppressionText, suppressionMarkdown } from '../src/suppression-report.js';
+import { toJson, toSarif, toMarkdownReport } from '../src/reports.js';
+const finding = {ruleId:'PG002',severity:'error',file:'migration.sql',line:2,column:1,message:'Drop column',fix:'Review'};
+const audit = suppressionReport([{status:'suppressed',file:finding.file,directiveLine:1,reason:'Approved',finding},{status:'rejected',ruleIds:['PG023'],line:3},{status:'unused',ruleId:'PG001'},{status:'scan-error'}]);
+test('counts every audit status',()=>assert.deepEqual(audit.summary,{suppressed:1,rejected:1,unused:1,scanErrors:1}));
+test('JSON retains active findings separately',()=>{const r=JSON.parse(toJson([],{suppression:audit}));assert.deepEqual(r.findings,[]);assert.deepEqual(r.suppression,audit)});
+test('SARIF includes suppressed result and rule catalog',()=>{const r=JSON.parse(toSarif([],audit)).runs[0];assert.equal(r.results[0].suppressions[0].kind,'inSource');assert.equal(r.results[0].suppressions[0].justification,'Approved');assert.equal(r.tool.driver.rules[0].id,'PG002');assert.deepEqual(r.properties.suppression,audit)});
+test('SARIF active result not suppressed',()=>assert.equal(JSON.parse(toSarif([finding],audit)).runs[0].results[0].suppressions,undefined));
+test('disabled JSON and SARIF omit audit',()=>{assert.equal(JSON.parse(toJson([])).suppression,undefined);assert.equal(JSON.parse(toSarif([])).runs[0].properties,undefined)});
+test('Markdown contains audit',()=>assert.match(toMarkdownReport([],{suppression:audit}),/Suppression audit/));
+test('Markdown escapes markup and line breaks',()=>{const s=suppressionMarkdown(suppressionReport([{status:'unused',reason:'<img>|\n[link](x)'}]));assert.ok(!s.includes('<img>'));assert.ok(!s.includes('[link]'));assert.ok(s.includes('&#124;'))});
+test('terminal strips control characters',()=>assert.ok(!suppressionText(suppressionReport([{status:'unused',reason:'\x1b[31m\n::error::'}])).includes('\x1b')));
+test('empty audit',()=>assert.equal(suppressionReport([]).summary.suppressed,0));
+test('unknown status fails closed',()=>assert.throws(()=>suppressionReport([{status:'unknown'}])));

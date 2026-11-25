@@ -1,12 +1,15 @@
+import { suppressionMarkdown } from './suppression-report.js';
 export function toJson(findings, meta = {}) { return JSON.stringify({ tool: 'pg-safe-migrate', ...meta, findings }, null, 2); }
-export function toSarif(findings) {
-  const ids = [...new Set(findings.map(f => f.ruleId))].sort();
-  return JSON.stringify({ version: '2.1.0', $schema: 'https://json.schemastore.org/sarif-2.1.0.json', runs: [{ tool: { driver: { name: 'pg-safe-migrate', informationUri: 'https://github.com/subodhsingh001/pg-safe-migrate', rules: ids.map(id => ({ id, shortDescription: { text: id } })) } }, results: findings.map(f => ({ ruleId: f.ruleId, level: f.severity === 'warning' ? 'warning' : 'error', message: { text: `${f.message} Fix: ${f.fix}` }, locations: [{ physicalLocation: { artifactLocation: { uri: f.file.replaceAll('\\','/') }, region: { startLine: Math.max(1, f.line || 1), startColumn: Math.max(1, f.column || 1) } } }] })) }] }, null, 2);
+export function toSarif(findings, audit) {
+  const suppressed = audit?.records.filter(r => r.status === 'suppressed') ?? [];
+  const all = [...findings, ...suppressed.map(r => r.finding)];
+  const ids = [...new Set(all.map(f => f.ruleId))].sort();
+  return JSON.stringify({ version: '2.1.0', $schema: 'https://json.schemastore.org/sarif-2.1.0.json', runs: [{ tool: { driver: { name: 'pg-safe-migrate', informationUri: 'https://github.com/subodhsingh001/pg-safe-migrate', rules: ids.map(id => ({ id, shortDescription: { text: id } })) } }, ...(audit ? { properties: { suppression: audit } } : {}), results: all.map((f, i) => ({ ...(i >= findings.length ? { suppressions: [{ kind: 'inSource', justification: suppressed[i - findings.length].reason }] } : {}), ruleId: f.ruleId, level: f.severity === 'warning' ? 'warning' : 'error', message: { text: `${f.message} Fix: ${f.fix}` }, locations: [{ physicalLocation: { artifactLocation: { uri: f.file.replaceAll('\\','/') }, region: { startLine: Math.max(1, f.line || 1), startColumn: Math.max(1, f.column || 1) } } }] })) }] }, null, 2);
 }
 
 // Human-readable report. Escapes Markdown cells and never includes untrusted HTML.
 const mdCell = value => String(value ?? '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-export function toMarkdownReport(findings = [], { filesChecked = 0, postgresVersion, risk } = {}) {
+export function toMarkdownReport(findings = [], { filesChecked = 0, postgresVersion, risk, suppression } = {}) {
   const errors = findings.filter(f => f.severity === 'error').length;
   const warnings = findings.filter(f => f.severity === 'warning').length;
   const lines = [
@@ -31,5 +34,5 @@ export function toMarkdownReport(findings = [], { filesChecked = 0, postgresVers
     lines.push('');
   }
   lines.push('> Static analysis is advisory. Review locks, data volume, transaction behavior, and production workload before deployment.', '');
-  return lines.join('\n');
+  return lines.join('\n') + (suppression ? suppressionMarkdown(suppression) : '');
 }

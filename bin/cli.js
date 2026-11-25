@@ -13,6 +13,7 @@ import { findMigrationFiles } from '../src/detector.js';
 import { getChangedSqlFiles } from '../src/gitDiff.js';
 import { loadConfig, isExcluded } from '../src/config.js';
 import { analyzeFiles } from '../src/analysis.js';
+import { suppressionReport, suppressionText, suppressionMarkdown } from '../src/suppression-report.js';
 import { toJson, toSarif, toMarkdownReport } from '../src/reports.js';
 import { inspectDatabaseUrl } from '../src/db-inspect.js';
 import { simulateSqlFile } from '../src/simulator.js';
@@ -86,7 +87,7 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      const entries=files.map(file=>({file:path.relative(process.cwd(),file)||file,sql:fs.readFileSync(file,'utf8')}));
      const suppressionAudit = [];
      const findings=await analyzeFiles(entries,config,{advisor:opts.advisor,suppressionAudit});
-     for (const record of suppressionAudit) console.error('[PG Safe Migrate suppression] ' + JSON.stringify(record));
+     const suppression = config.suppression?.enabled ? suppressionReport(suppressionAudit) : undefined;
      const production = opts.productionContext ? productionAssessment(findings, loadProductionContext(opts.productionContext)) : null;
      if (opts.writeRiskBaseline && opts.riskBaseline) throw new Error('Cannot combine --write-risk-baseline and --risk-baseline');
      if (opts.writeRiskBaseline && opts.gatePolicy) throw new Error('Baseline creation cannot be combined with a gate policy');
@@ -96,10 +97,11 @@ program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk
      const gate = opts.gatePolicy ? assessLintPolicy(gateFindings, gatePolicy, summarizeRisk(gateFindings)) : null;
      if (opts.writeRiskBaseline) writeRiskBaseline(opts.writeRiskBaseline, createRiskBaseline(findings, entries));
      if (opts.github) process.stdout.write(toGitHubAnnotations(findings));
-     if (opts.summary) {fs.mkdirSync(path.dirname(path.resolve(opts.summary)),{recursive:true});fs.writeFileSync(opts.summary,toMarkdownSummary(findings,files.length));}
-     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion}):opts.format==='sarif'?toSarif(findings):opts.format==='markdown'?toMarkdownReport(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,risk:opts.risk?summarizeRisk(findings):undefined}):[
+     if (opts.summary) {fs.mkdirSync(path.dirname(path.resolve(opts.summary)),{recursive:true});fs.writeFileSync(opts.summary,toMarkdownSummary(findings,files.length) + (suppression ? suppressionMarkdown(suppression) : ''));}
+     const report=opts.format==='json'?toJson(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,...(suppression ? { suppression } : {})}):opts.format==='sarif'?toSarif(findings,suppression):opts.format==='markdown'?toMarkdownReport(findings,{filesChecked:files.length,postgresVersion:config.postgresVersion,risk:opts.risk?summarizeRisk(findings):undefined,suppression}):[
        ...findings.flatMap(f=>[`${f.file}:${f.line}:${f.column} [${f.ruleId}] ${f.severity}: ${f.message}`,`  Fix: ${f.fix}`,...(f.advisor?f.advisor.steps.map((s,i)=>`  ${i+1}. ${s}`):[])]),
        ...(opts.risk?[`Risk: ${JSON.stringify(summarizeRisk(findings))}`]:[]),
+       ...(suppression ? [suppressionText(suppression)] : []),
        `Checked ${files.length} SQL file(s); found ${findings.length} configured risk(s). No downtime guarantee.`
      ].join('\n');
      const gateReport = opts.format === 'json' && (gate || baselineComparison || production) ? JSON.stringify({ ...JSON.parse(report), ...(baselineComparison ? { baseline: { newCount: baselineComparison.newCount, existingCount: baselineComparison.existingCount, resolvedCount: baselineComparison.resolvedCount, newFindings: baselineComparison.newFindings } } : {}), ...(production ? { production } : {}), ...(gate ? { gate: { name: gate.name, decision: gate.passed ? 'PASS' : 'BLOCK', passed: gate.passed, reasons: gate.reasons, note: gate.note } } : {}) }, null, 2) : report;
