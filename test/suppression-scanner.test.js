@@ -1,0 +1,16 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { scanSuppressions } from '../src/suppression.js';
+const d = '-- pg-safe-migrate-disable-next-line PG002 -- reason: approved';
+const scan = scanSuppressions;
+test('single directive with source positions',()=>assert.deepEqual(scan(d+'\nDROP TABLE x;').directives,[{line:1,offset:0,endOffset:d.length,ruleIds:['PG002'],reason:'approved'}]));
+test('multiple IDs, case and duplicates',()=>assert.deepEqual(scan('-- PG-SAFE-MIGRATE-DISABLE-NEXT-LINE pg002, PG003, PG002 -- reason: ok').directives[0].ruleIds,['PG002','PG003']));
+test('missing reason preserved for policy layer',()=>assert.equal(scan('-- pg-safe-migrate-disable-next-line PG002').directives[0].reason,''));
+test('malformed IDs rejected',()=>assert.equal(scan('-- pg-safe-migrate-disable-next-line PG2').invalid.length,1));
+test('trailing inline directive ignored',()=>assert.equal(scan('SELECT 1; '+d).directives.length,0));
+for(const [name,sql] of [['string',`SELECT 'a\n${d}\nb';`],['identifier',`SELECT "a\n${d}\nb";`],['dollar',`DO $body$\n${d}\n$body$;`],['untagged dollar',`SELECT $$\n${d}\n$$;`],['nested block',`/* /* nested */\n${d}\n*/`],['escaped quote',`SELECT E'a\\'\n${d}\nb';`],['doubled quote',`SELECT 'a''\n${d}\nb';`]]) test(name+' ignores embedded directive',()=>{const r=scan(sql+'\n'+d);assert.equal(r.scanError,null);assert.equal(r.directives.length,1);assert.equal(r.directives[0].offset,sql.length+1);});
+test('CRLF and UTF16 offsets',()=>{const prefix="SELECT '日本😀';\r\n  ";const r=scan(prefix+d);assert.equal(r.directives[0].line,2);assert.equal(r.directives[0].offset,prefix.length);});
+test('bare CR line ending',()=>assert.equal(scan('SELECT 1;\r'+d).directives[0].line,2));
+test('dollar in identifier',()=>assert.equal(scan('SELECT foo$bar$;\n'+d).directives.length,1));
+for(const sql of ["SELECT 'bad",'/* bad','SELECT $x$bad',"SELECT 'a\\b';"]) test('fail closed: '+sql,()=>{const r=scan(d+'\n'+sql);assert.ok(r.scanError);assert.deepEqual(r.directives,[]);});
+test('unknown rule syntax remains candidate for later catalog validation',()=>assert.deepEqual(scan('-- pg-safe-migrate-disable-next-line PG999').directives[0].ruleIds,['PG999']));
