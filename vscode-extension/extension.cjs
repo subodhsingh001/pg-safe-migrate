@@ -86,24 +86,16 @@ function diagnosticsFor(findings, document) {
   });
 }
 
-function findCli(documentPath) {
-  const candidates = [
-    path.join(__dirname, 'runtime', 'bin', 'cli.js'),
-    path.resolve(__dirname, '..', 'bin', 'cli.js')
-  ];
-
-  let current = path.dirname(documentPath);
-
-  while (true) {
-    candidates.push(path.join(current, 'bin', 'cli.js'));
-
-    const parent = path.dirname(current);
-    if (parent === current) break;
-
-    current = parent;
+function findCli() {
+  const bundled = path.join(__dirname, 'runtime', 'bin', 'cli.js');
+  if (fs.existsSync(bundled)) return bundled;
+  // Only allow the sibling CLI in a source checkout, never the SQL workspace.
+  const root = path.resolve(__dirname, '..');
+  if (path.basename(__dirname) === 'vscode-extension' && fs.existsSync(path.join(root, 'src', 'parser.js'))) {
+    const cli = path.join(root, 'bin', 'cli.js');
+    if (fs.existsSync(cli)) return cli;
   }
-
-  return candidates.find(file => fs.existsSync(file));
+  return undefined;
 }
 
 function settings() {
@@ -149,7 +141,7 @@ function drain() {
 }
 
 function lint(document, interactive = false) {
-  if (stopping || !isSql(document)) return;
+  if (stopping || vscode.workspace.isTrusted === false || !isSql(document)) return;
   const key = document.uri.toString();
   cancel(document.uri);
   pending.set(key, { document, interactive, version: document.version });
@@ -186,7 +178,7 @@ function startLint(document, interactive = false) {
 
   if (!cli) {
     const message =
-      'PG Safe Migrate runtime not found. Rebuild the standalone VSIX or configure a project CLI.';
+      'PG Safe Migrate runtime not found. Rebuild or reinstall the standalone VSIX.';
 
     output.appendLine(`CLI not found for ${document.uri.fsPath}`);
     lastFindings.delete(key);
@@ -199,7 +191,10 @@ function startLint(document, interactive = false) {
     return;
   }
 
-  const nodePath = settings().get('nodePath', 'node') || 'node';
+  const config = settings();
+  const nodePath = (typeof config.inspect === 'function'
+    ? config.inspect('nodePath')?.globalValue
+    : config.get('nodePath', 'node')) || 'node';
 
   const args = [
     cli,

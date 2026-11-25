@@ -50,7 +50,8 @@
         "pgSafeMigrate.nodePath": {
           "type": "string",
           "default": "node",
-          "description": "Node.js executable path used to run the CLI."
+          "description": "Node.js executable path used to run the CLI.",
+          "scope": "machine"
         },
         "pgSafeMigrate.timeoutMs": {
           "type": "integer",
@@ -97,5 +98,10 @@
     "flyway",
     "zero-downtime",
     "locks"
-  ]
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false
+    }
+  }
 }
