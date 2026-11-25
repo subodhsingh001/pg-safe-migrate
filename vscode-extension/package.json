@@ -2,7 +2,7 @@
   "name": "pg-safe-migrate-vscode",
   "displayName": "PG Safe Migrate",
   "description": "Find risky PostgreSQL SQL migrations in VS Code with lock warnings, risk analysis and safer migration guidance",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -79,7 +79,7 @@
   },
   "scripts": {
     "build:standalone": "node build-standalone.cjs",
-    "package:standalone": "npm run build:standalone && npx @vscode/vsce package --no-dependencies",
+    "package:standalone": "npm run build:standalone && npm run verify:standalone && npx --yes @vscode/vsce@4.1.1 package --no-dependencies",
     "verify:standalone": "node verify-standalone.cjs"
   },
   "repository": {

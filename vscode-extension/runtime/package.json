@@ -1,6 +1,6 @@
 {
   "name": "@subodh001/pg-safe-migrate",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway",
   "type": "module",
   "bin": {

@@ -21,7 +21,7 @@ Standalone PostgreSQL migration linting for `.sql` files, powered by the bundled
 * `pgSafeMigrate.debounceMs` (default `350`): debounce in milliseconds.
 * `pgSafeMigrate.nodePath` (default `node`): Node.js executable.
 
-### Development branch safeguards (not yet released)
+### v0.7.0 release candidate safeguards (not yet published)
 
 - `pgSafeMigrate.timeoutMs`: 30000 ms (1000–120000).
 - `pgSafeMigrate.maxConcurrentLints`: 1 (1–4 per extension host).
@@ -40,11 +40,11 @@ npm run verify:standalone
 npm run package:standalone
 ```
 
-`build:standalone` copies the sibling CLI project into `runtime/` and installs its production dependencies. The resulting VSIX bundles the CLI and parser WASM, so it can lint SQL files in unrelated workspaces.
+`build:standalone` copies the sibling CLI project into `runtime/` and installs its production dependencies. The packaging command rebuilds and verifies the runtime before packaging with VSCE 4.1.1. The resulting VSIX bundles the CLI and parser WASM, so it can lint SQL files in unrelated workspaces.
 
 ## Install locally
 
-In VS Code, open **Extensions → ... → Install from VSIX** and select the generated `pg-safe-migrate-vscode-0.6.0.vsix`.
+In VS Code, open **Extensions → ... → Install from VSIX** and select the generated `pg-safe-migrate-vscode-0.7.0.vsix`.
 
 Open any `.sql` file, enter `DROP TABLE users;`, save it, and check **Problems** for PG011. Check the lightbulb guidance as well.
 
@@ -67,5 +67,7 @@ PG025 supersedes the older PG013 warning for the same `SET NOT NULL` statement. 
 The release workflow builds and verifies a VSIX. A `vscode-v*` tag or manual dispatch from main with a nonempty `publish_version` can trigger Marketplace OIDC publication, subject to environment protections and authentication. Leave the input empty for build-only manual dispatch. Do not push release tags until approved.
 
 ## Safety limitations
+
+Large SQL inputs can consume substantial memory even below the file size limit. Concurrency and timeout settings are not hard process memory limits.
 
 Linting and disposable-database simulations cannot guarantee production safety, zero downtime, or automatic rollback. Review migration plans and backups before deploying changes.

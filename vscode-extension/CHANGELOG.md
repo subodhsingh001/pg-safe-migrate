@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (proposed 0.7.0)
+## [0.7.0] - Release candidate (not published)
 
 - Bounded lint scheduling, cancellation, timeout and output safeguards.
 - Saved SQL file size limit and configurable concurrency.

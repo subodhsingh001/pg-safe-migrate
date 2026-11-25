@@ -1,4 +1,4 @@
-> **Published npm CLI: v2.5.0.** **VS Code extension: v0.6.0.** Week 3 CI policy gates and risk-baseline features are included in the published CLI. Migration analysis does not guarantee zero downtime.
+> **Published npm CLI: v2.5.0.** **VS Code extension release candidate: v0.7.0 (not published).** **CLI release candidate: v2.6.0 (not published).** Week 3 CI policy gates and risk-baseline features are included in the published CLI. Migration analysis does not guarantee zero downtime.
 
 # pg-safe-migrate
 
@@ -133,9 +133,9 @@ For pull requests, fetch the base branch first. Use `fetch-depth: 0` in GitHub A
 
 ## PostgreSQL migration rules
 
-The development branch documents the following identifiers; this table is not a certification of the published npm artifact.
+The v2.6.0 release candidate documents the following identifiers; this table is not a certification of the published v2.5.0 artifact.
 
-23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 require a target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata.
+23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 are triggered for a configured target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata.
 
 | ID | Diagnostic | Default | Guidance |
 |---|---|---|---|
@@ -244,7 +244,7 @@ npm test
 Test the rule engine:
 
 ```bash
-node bin/cli.js test/unsafe_migration.sql
+node bin/cli.js examples/unsafe.sql
 ```
 
 Check the npm package:
@@ -256,6 +256,8 @@ npm pack --dry-run
 ## Current release
 
 **v2.5.0 (published CLI)**
+
+The v2.6.0 release candidate adds improved SQL positions, transaction tracking and rule catalog metadata. See [CHANGELOG.md](CHANGELOG.md).
 
 - Expanded PostgreSQL migration risk checks and framework advisories
 - PostgreSQL AST-based parsing
@@ -274,7 +276,7 @@ npm pack --dry-run
 
 ### Parser and diagnostic capabilities
 
-The current development version includes:
+The v2.6.0 release candidate includes:
 
 - Unicode-aware diagnostic positions with UTF-16 editor coordinates.
 - Windows CRLF and Unix LF compatibility.
@@ -283,7 +285,7 @@ The current development version includes:
 - Explicit transaction tracking, including savepoints and chained transactions.
 - PostgreSQL syntax error detection.
 
-These parser improvements are development changes and are not yet included in the published npm v2.5.0 release.
+These parser improvements are included in the v2.6.0 release candidate, not the published npm v2.5.0 release. Large SQL inputs can consume substantial memory; static analysis has no hard process memory cap.
 
 ### Static analysis boundaries
 
