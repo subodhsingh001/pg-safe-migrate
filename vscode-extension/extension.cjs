@@ -504,7 +504,7 @@ function activate(context) {
         const findings =
           lastFindings.get(document.uri.toString()) || [];
 
-        return context.diagnostics
+        const actions = context.diagnostics
           .filter(d => d.source === 'pg-safe-migrate' && d.code)
           .map(d => {
             const finding = findings.find(f =>
@@ -535,6 +535,7 @@ function activate(context) {
             return action;
           })
           .filter(Boolean);
+        return require('./generate-plan.cjs').appendPlanAction(vscode, document, actions);
       }
     },
     {

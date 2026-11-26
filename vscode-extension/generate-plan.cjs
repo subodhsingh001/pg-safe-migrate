@@ -9,13 +9,21 @@ function runPlan(node, cli, file, framework, context, format, execute=execFile) 
   const env={...process.env}; delete env.NODE_OPTIONS; delete env.NODE_PATH;
   return new Promise((resolve,reject)=>execute(node,args,{cwd:path.dirname(path.dirname(cli)),shell:false,windowsHide:true,timeout:30000,maxBuffer:4*1024*1024,encoding:'utf8',env},(err,stdout)=>err?reject(new Error('Plan generation failed or exceeded limits. Check saved SQL, context and bundled runtime.')):resolve(stdout)));
 }
+function appendPlanAction(vscode, doc, actions) {
+  if (!actions.length || vscode.workspace.isTrusted !== true || doc.isDirty || doc.uri.scheme !== 'file' || !doc.fileName.toLowerCase().endsWith('.sql')) return actions;
+  const action = new vscode.CodeAction('PGSAFE: Generate Migration Plan', vscode.CodeActionKind.QuickFix);
+  action.diagnostics = actions.flatMap(a => a.diagnostics || []);
+  action.command = {command:'pgSafeMigrate.generatePlan', title:action.title, arguments:[doc.uri.toString(), doc.version]};
+  return [...actions, action];
+}
 function register(vscode, findCli, settings) {
   let busy=false;
-  return vscode.commands.registerCommand('pgSafeMigrate.generatePlan',async()=>{
+  return vscode.commands.registerCommand('pgSafeMigrate.generatePlan',async(expectedUri, expectedVersion)=>{
     if(busy) return;
     if(vscode.workspace.isTrusted!==true) return vscode.window.showWarningMessage('Trust the workspace before generating a plan.');
     const doc=vscode.window.activeTextEditor?.document;
     if(!doc || doc.uri.scheme!=='file' || !doc.fileName.toLowerCase().endsWith('.sql') || doc.isDirty) return vscode.window.showWarningMessage('Open a saved SQL file first.');
+    if(typeof expectedUri==='string' && (doc.uri.toString()!==expectedUri || doc.version!==expectedVersion)) return vscode.window.showWarningMessage('SQL selection changed; reopen Quick Fix.');
     busy=true;
     try {
       const version=doc.version;
@@ -42,4 +50,4 @@ function register(vscode, findCli, settings) {
     } catch(e) {vscode.window.showErrorMessage(`PGSAFE: ${e.message}`);} finally {busy=false;}
   });
 }
-module.exports={runPlan,register};
+module.exports={runPlan,register,appendPlanAction};

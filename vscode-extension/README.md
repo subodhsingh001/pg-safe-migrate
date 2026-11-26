@@ -74,3 +74,6 @@ Linting and disposable-database simulations cannot guarantee production safety, 
 
 ### Migration plan preview (development)
 Rebuild the standalone runtime before testing. Open a saved SQL file in a trusted workspace and select **PGSAFE: Generate Migration Plan** from the command palette or editor context menu. Select framework, optional reviewed JSON context, and Markdown or JSON. The report opens as an untitled text document; use normal VS Code Copy and Save As to export it. No SQL is executed and no migration is edited. The preview is editable text, not an approved migration. Only one generator request runs at a time, with a 30-second timeout and 4 MiB output limit.
+
+### Generate from Quick Fix
+On a saved SQL file in a trusted workspace, press Ctrl+. on a PGSAFE diagnostic and select **PGSAFE: Generate Migration Plan**. Existing advisory guidance remains available. The command checks the selected document and version, then opens a separate review-only report. No automatic edits or SQL execution.
