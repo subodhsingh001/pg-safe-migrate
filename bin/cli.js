@@ -117,4 +117,22 @@ program.name('pgsafe').description('AST-based PostgreSQL migration risk linter (
      process.exitCode=(gate && !gate.passed) || (opts.failOn==='warning' && gateFindings.length>0) || (opts.failOn==='error' && gateFindings.some(f=>f.severity==='error')) ? 1 : 0;
    }catch(e){console.error(`Error: ${e.message}`);process.exitCode=2;}
  });
-program.parse();
+if (process.argv[2] === 'generate') {
+ const { Command } = await import('commander');
+ const { planStatements, renderPlan } = await import('../src/generator.js');
+ const { parseSqlFile } = await import('../src/parser.js');
+ const generator = new Command().name('pgsafe generate').argument('<file>').option('--format <format>', 'text, markdown or json', 'text').option('--output <file>', 'Create a new report file; never overwrite').action(async (file, opts) => {
+  try {
+   const stat = fs.statSync(file);
+   if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new Error('Expected a SQL file of at most 2 MiB');
+   const sql = fs.readFileSync(file, 'utf8');
+   if (Buffer.byteLength(sql) > 2 * 1024 * 1024) throw new Error('SQL exceeds 2 MiB');
+   const parsed = await parseSqlFile(sql, {details:true});
+   if (!parsed.length || parsed.length > 500) throw new Error('Expected 1–500 SQL statements');
+   const report = renderPlan(planStatements(parsed), opts.format);
+   if (opts.output) fs.writeFileSync(opts.output, report+'\n', {flag:'wx'});
+   else console.log(report);
+  } catch(e) { console.error(`Error: ${e.message}`); process.exitCode=2; }
+ });
+ await generator.parseAsync(process.argv.slice(3), {from:'user'});
+} else program.parse();

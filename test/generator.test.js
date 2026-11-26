@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {planStatements,renderPlan} from '../src/generator.js';
+const relation={schemaname:'public',relname:'users'};
+const rename={stmt:{RenameStmt:{renameType:'OBJECT_COLUMN',relation,subname:'email',newname:'email_address'}}};
+test('rename has six stages and no destructive SQL',()=>{const p=planStatements([rename]);assert.equal(p.operations[0].steps.length,6);assert.equal(p.status,'review-required');assert.match(renderPlan(p),/IS DISTINCT FROM/);assert.doesNotMatch(renderPlan(p),/DROP COLUMN/);});
+test('unknown statement is retained',()=>assert.equal(planStatements([{stmt:{SelectStmt:{}}}]).operations[0].kind,'unsupported'));
+test('unqualified table rejected',()=>assert.throws(()=>planStatements([{stmt:{RenameStmt:{...rename.stmt.RenameStmt,relation:{relname:'users'}}}}]),/schema-qualified/));
+test('identifier quoting',()=>assert.match(renderPlan(planStatements([{stmt:{RenameStmt:{...rename.stmt.RenameStmt,subname:'a"b'}}}])),/"a""b"/));
+test('not null plan',()=>assert.equal(planStatements([{stmt:{AlterTableStmt:{relation,cmds:[{AlterTableCmd:{subtype:'AT_SetNotNull',name:'email'}}]}}}]).operations[0].kind,'set-not-null'));
+test('type change plan',()=>assert.equal(planStatements([{stmt:{AlterTableStmt:{relation,cmds:[{AlterTableCmd:{subtype:'AT_AlterColumnType',name:'email'}}]}}}]).operations[0].kind,'alter-column-type'));
+test('json and invalid format',()=>{const p=planStatements([rename]);assert.deepEqual(JSON.parse(renderPlan(p,'json')),p);assert.throws(()=>renderPlan(p,'sarif'));});
