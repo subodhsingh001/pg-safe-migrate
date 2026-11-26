@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { renderReport, selectComment, MARKER } from '../github-action/report.mjs';
+const finding = {ruleId:'PG002',severity:'error',file:'migrations/a.sql',line:1,message:'Drop column',fix:'Use staged deployment'};
+const report = {head:'a'.repeat(40),filesChecked:1,status:'blocked',exitCode:1,findings:[finding]};
+test('blocked report contains risk and guidance',()=>{const s=renderReport(report); assert.match(s,/BLOCK/);assert.match(s,/25\/100/);assert.match(s,/Use staged deployment/);});
+test('pass can contain findings under permissive gate',()=>assert.match(renderReport({...report,status:'passed',exitCode:0}),/PASS means/));
+test('no migrations is distinct',()=>assert.match(renderReport({...report,status:'no-migrations',exitCode:0,filesChecked:0,findings:[]}),/NO MIGRATIONS/));
+test('error never reports pass or raw error',()=>assert.match(renderReport({status:'error',message:'secret'}),/No safety decision/));
+test('invalid report fails closed',()=>assert.throws(()=>renderReport({...report,exitCode:0})));
+test('untrusted markup and mentions encoded',()=>{const s=renderReport({...report,findings:[{...finding,message:'<img> @user [x](https://evil.test)\n<!-- pg-safe-migrate-report -->'}]});assert.ok(!s.includes('<img>'));assert.ok(!s.includes('@user'));assert.equal(s.split(MARKER).length,2);});
+test('large reports bounded with omitted count',()=>{const s=renderReport({...report,findings:Array.from({length:1000},()=>({...finding,message:'😀'.repeat(500)}))});assert.ok(Buffer.byteLength(s)<=48000);assert.match(s,/additional findings omitted/);});
+test('comment selection checks author and exact first line',()=>assert.equal(selectComment([{id:1,user:{id:9},body:MARKER},{id:2,user:{id:7},body:'fake '+MARKER},{id:3,user:{id:7},body:MARKER+'\nreport'}],7),3));
+test('no owned comment means create',()=>assert.equal(selectComment([],7),null));
+test('duplicate selection deterministic',()=>assert.equal(selectComment([9,4].map(id=>({id,user:{id:7},body:MARKER})),7),4));
