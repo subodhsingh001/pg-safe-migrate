@@ -1,0 +1,69 @@
+name: PGSAFE separated analysis and publishing
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions: {}
+concurrency:
+  group: pgsafe-separated-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      handoff: ${{ steps.scan.outputs.handoff }}
+      gate: ${{ steps.scan.outputs.gate }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Fetch PR objects only
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || exit 1
+          git -c "http.extraheader=AUTHORIZATION: bearer $GH_TOKEN" fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+      - id: scan
+        run: node github-action/handoff.mjs analyze
+  publish:
+    needs: analyze
+    if: ${{ needs.analyze.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && vars.PGSAFE_ENABLE_COMMENTS == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - env:
+          PGSAFE_HANDOFF: ${{ needs.analyze.outputs.handoff }}
+          PGSAFE_TOKEN: ${{ github.token }}
+          PGSAFE_AUTHOR_ID: ${{ vars.PGSAFE_BOT_ID }}
+        run: node github-action/handoff.mjs publish
+  gate:
+    needs: analyze
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - env:
+          RESULT: ${{ needs.analyze.result }}
+          GATE: ${{ needs.analyze.outputs.gate }}
+          HANDOFF: ${{ needs.analyze.outputs.handoff }}
+        run: |
+          [[ "$RESULT" == success && "$GATE" == 0 && -n "$HANDOFF" ]]

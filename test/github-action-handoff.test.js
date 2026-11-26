@@ -1,0 +1,17 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {context,encodeReport,decodeReport,publishHandoff} from '../github-action/handoff.mjs';
+const head='a'.repeat(40),base='b'.repeat(40),repo='owner/repo';
+const env={GITHUB_EVENT_NAME:'pull_request_target',GITHUB_REPOSITORY:repo,GITHUB_RUN_ID:'42',GITHUB_RUN_ATTEMPT:'1',PGSAFE_TOKEN:'token',PGSAFE_AUTHOR_ID:'123'};
+const read=()=>JSON.stringify({pull_request:{number:1,head:{sha:head,repo:{full_name:repo}},base:{sha:base,repo:{full_name:repo}}}});
+const ctx=context(env,read);
+const report={head,base,status:'blocked',exitCode:1,filesChecked:1,findings:[{ruleId:'PG002',severity:'error',file:'a.sql',line:1,message:'risk'}]};
+const value=encodeReport(ctx,report);
+test('round trip preserves gate',()=>assert.equal(decodeReport(ctx,value).exitCode,1));
+test('rejects replay across run, attempt, PR, base and head',()=>{for(const [k,v] of Object.entries({run:'43',attempt:'2',pr:2,base:head,head:base}))assert.throws(()=>decodeReport({...ctx,[k]:v},value));});
+test('rejects malformed or oversized handoff',()=>{for(const v of ['', 'a\n', 'a'.repeat(240001)])assert.throws(()=>decodeReport(ctx,v));});
+test('rejects invalid gate and report context',()=>{assert.throws(()=>encodeReport(ctx,{...report,exitCode:0}));assert.throws(()=>encodeReport(ctx,{...report,head:base}));});
+test('publisher accepts matching report',async()=>{let called=0;await publishHandoff({...env,PGSAFE_HANDOFF:value},{read,publish:async x=>{called++;assert.equal(x.report.pr,1);return {status:'created'};}});assert.equal(called,1);});
+test('missing handoff never publishes',async()=>{await assert.rejects(publishHandoff(env,{read,publish:()=>assert.fail()}));});
+test('fork skips publisher',async()=>{const fork=()=>read().replace('"full_name":"owner/repo"','"full_name":"other/repo"');assert.equal((await publishHandoff(env,{read:fork,publish:()=>assert.fail()})).status,'skipped');});
+test('untrusted event rejected',()=>assert.throws(()=>context({...env,GITHUB_EVENT_NAME:'pull_request'},read)));
