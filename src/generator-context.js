@@ -1,3 +1,4 @@
+import { addBackfill, validateBackfill } from './generator-backfill.js';
 // Explicit operator-reviewed context; never accept arbitrary SQL fragments.
 const types = new Set(['text','integer','bigint','smallint','boolean','uuid','date','timestamp','timestamptz','numeric','real','double precision','bytea']);
 export function reviewedType(value) {
@@ -40,7 +41,7 @@ export function validateContext(input) {
   }
   if(t.notNullCheckName!==undefined) identifier(t.notNullCheckName);
   if(t.shadowColumn!==undefined) identifier(t.shadowColumn);
-  map.set(key,{columns,notNullCheckName:t.notNullCheckName,shadowColumn:t.shadowColumn});
+  map.set(key,{columns,notNullCheckName:t.notNullCheckName,shadowColumn:t.shadowColumn,backfill:validateBackfill(t.backfill,columns)});
  }
  return map;
 }
@@ -72,6 +73,7 @@ export function applyContext(plan, statements, input) {
     op.steps[0].instruction+=' Review live types, defaults, foreign keys, indexes, triggers and application dependencies. No cast or data update is generated.';
    }
   }
+  addBackfill(op,stmt,ctx,table,identifier,targetType);
   if(op.kind==='set-not-null') {
    const name=stmt.AlterTableStmt.cmds[0].AlterTableCmd.name;
    if(!ctx.columns.has(name)||!ctx.notNullCheckName) continue;

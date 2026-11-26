@@ -284,3 +284,9 @@ Context schema version 1 lists schema/table names, existing columns and reviewed
 ### Generator: additional review templates (development)
 
 Schema context accepts bounded `varchar(n)` and `numeric(p,s)` with nonnegative scale no greater than precision. For integer widening (smallint to integer/bigint, integer to bigint), provide a reviewed unused `shadowColumn` in the table context. Only the nullable shadow column is generated; no conversion or backfill SQL is emitted. Other conversions require manual review. Simple named nonunique B-tree indexes on schema-qualified tables receive a concurrent creation template; complex indexes require manual review. Verify partitioning, dependencies, index names, live schema and transaction boundaries before use. Templates are independent review suggestions, not an ordered executable bundle.
+
+### Review-only batched backfill (v3 development)
+
+`node bin/cli.js generate examples/generator-backfill.sql --schema-context examples/generator-backfill-context.json`
+
+Optional per-table `backfill` metadata declares `primaryKey` (one to eight existing columns), `batchSize` (1–10000, default 1000), `stableKey` and `dualWritesReady` (explicit booleans). These are operator assertions, not catalog verification. Supported rename types and integer widening can produce one bounded, null-aware batch and a mismatch count. Execute only after review, expansion and synchronized writers, one short transaction at a time. Retry transient failures with bounded backoff; throttle according to measured workload. A zero-row batch can mean rows were locked. No automatic execution, checkpoint storage, monitoring, NOT NULL replacement values or production safety guarantee is provided. Review triggers, partitioning, inheritance, collations, RLS, constraints and actual primary key metadata first. Do not use after source authority changes.
