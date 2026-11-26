@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0] — release candidate (not published)
+
+- Add installable repository-hosted GitHub Action with bounded Git-object analysis, PR reporting and optional comment publishing.
+- Add separated publishing example and ORM verification workflow.
+- Add release manifest checks. Live GitHub verification is required before stable release.
+
+
 ## [2.7.1]
 
 - Make `pgsafe` the standalone npm engine instead of a wrapper.

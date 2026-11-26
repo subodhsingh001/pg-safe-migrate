@@ -1,18 +1,18 @@
-# Release checklist: v2.0.0
+# PGSAFE 2.8.0 release candidate
 
-Version `2.0.0` is already published according to the maintainer. **Do not publish the same version again.**
+Not published. The GitHub Action is distributed from the Git repository, not the npm tarball. Proposed action tag: `action-v1.0.0`; use an immutable reviewed commit SHA in consumer workflows.
 
-## Release verification
+## Local gates
 
-1. Confirm `package.json` version is `2.0.0`.
-2. Run `npm ci`, `npm test`, `node test/release-smoke.cjs`, and `npm pack --dry-run` from the project root.
-3. Review the package file list from `npm pack --dry-run` (only intended CLI files should ship).
-4. Confirm GitHub Actions is green on the latest commit.
-5. Check `docs/internal/RELEASE-VERIFICATION.md` for tested PostgreSQL, Prisma, and Drizzle behavior and limitations.
-6. Confirm external installation with `npx --yes pgsafe@2.7.1 --help`.
-7. Commit documentation and test changes; push to the repository. Test-only/documentation changes do **not** require another npm publish.
-8. If desired, create or verify a `v2.0.0` Git tag pointing at the actual published release commit; do not move an existing tag without deliberate release coordination.
+Run `npm ci`, `npm test`, `npm run test:action-release`, `npm audit`, and `git diff --check`. Inspect the npm pack manifest and install the packed tarball in a clean directory; run both CLI aliases. Confirm the version is unused with `npm view pgsafe@2.8.0 version` (only a confirmed not-found response means it is unused).
 
-## Future versions
+## Live gates (manual evidence required)
 
-For changes to the published npm package, increment the version, run all checks again, then publish the new version only after reviewing its release contents. See `docs/internal/UPGRADE-NOTES.md` for version-specific guidance.
+- Release verification matrix and ORM migration verification workflow green on the release commit.
+- In a disposable consumer repository, use the reviewed SHA in `examples/trusted-action-workflow.yml`. Verify safe SQL passes, destructive SQL blocks, missing/invalid report fails, and a fork PR cannot publish. Never checkout PR code under pull_request_target.
+- In this repository, review and activate the separated example. Verify same-repository comment creation and update, stale head rejection, missing token/permission failure, fork skip, and blocked gate independent of publishing. Verify required checks attach to the intended PR head before enabling branch protection.
+- Record run URLs and reviewed SHA. No stable tag or npm publication until all gates pass. No downtime guarantee.
+
+## Publish only after approval
+
+Use `npm publish --access public` from the reviewed release commit after checking npm ownership and authentication. Create immutable tags `v2.8.0` and `action-v1.0.0` on that commit; never move existing tags. Verify clean external installation and GitHub release notes. If a gate fails, stop and fix it before publishing.
