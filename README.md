@@ -274,3 +274,9 @@ Example: `{"rules":{"PG026":"warning","PG027":"warning","PG028":"warning","PG029
 Use schema-qualified table names. Supports column rename, SET NOT NULL and column type change as review-only staged plans. Other statements are explicitly marked unsupported. JSON and Markdown output are available; `--output plan.md` creates a new file and refuses overwrite. The generator does not execute SQL, infer schema types, or generate destructive SQL. Exit 0 means report creation, not migration approval. Existing lint commands are unchanged except the reserved first argument `generate` (use `./generate` for a path of that name).
 
 The primary npm package is `pgsafe`. The historical scoped package `@subodh001/pg-safe-migrate` is separately published; migrate explicitly with `npm install -D pgsafe`.
+
+### Reviewed schema context (generator preview)
+
+`node bin/cli.js generate examples/generator.sql --schema-context examples/generator-context.json --format markdown`
+
+Context schema version 1 lists schema/table names, existing columns and reviewed built-in types. An optional `notNullCheckName` supplies a proposed constraint name; verify it is unused. Rename templates require a known source type and absent destination in the supplied context. NOT NULL templates separate CHECK NOT VALID and VALIDATE CONSTRAINT. No live schema inspection, destructive SQL, automatic execution, type conversion SQL or index templates are provided by this preview. Verify context against the database before use.

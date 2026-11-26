@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {planStatements} from '../src/generator.js';
+import {applyContext,validateContext,identifier} from '../src/generator-context.js';
+const relation={schemaname:'public',relname:'users'};
+const rename=[{stmt:{RenameStmt:{renameType:'OBJECT_COLUMN',relation,subname:'email',newname:'email_address'}}}];
+const nn=[{stmt:{AlterTableStmt:{relation,cmds:[{AlterTableCmd:{subtype:'AT_SetNotNull',name:'email'}}]}}}];
+const context=()=>({schemaVersion:1,tables:[{schema:'public',table:'users',columns:[{name:'email',type:'text'}],notNullCheckName:'email_nn'}]});
+const plan=(s,c)=>applyContext(planStatements(s),s,c);
+test('rename uses reviewed type',()=>assert.equal(plan(rename,context()).operations[0].steps[0].sql,'ALTER TABLE "public"."users" ADD COLUMN "email_address" text;'));
+test('no context retains guidance',()=>assert.equal(plan(rename,undefined).operations[0].steps[0].sql,null));
+test('existing target blocks template',()=>{const c=context();c.tables[0].columns.push({name:'email_address',type:'text'});assert.equal(plan(rename,c).operations[0].steps[0].sql,null);});
+test('arbitrary SQL type rejected',()=>{const c=context();c.tables[0].columns[0].type='text; DROP TABLE users';assert.throws(()=>validateContext(c));});
+test('duplicate tables rejected',()=>{const c=context();c.tables.push(c.tables[0]);assert.throws(()=>validateContext(c));});
+test('identifier quoting and length',()=>{assert.equal(identifier('a"b'),'"a""b"');assert.throws(()=>identifier('x'.repeat(64)));});
+test('not null templates separate validation',()=>{const s=plan(nn,context()).operations[0].steps;assert.match(s.find(x=>x.phase==='constraint').sql,/NOT VALID;/);assert.match(s.find(x=>x.phase==='validate-constraint').sql,/VALIDATE CONSTRAINT/);assert.equal(s.find(x=>x.phase==='contract').sql,null);});
+test('missing table context retains guidance',()=>{const c=context();c.tables=[];assert.equal(plan(rename,c).operations[0].steps[0].sql,null);});
