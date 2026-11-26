@@ -1,0 +1,54 @@
+name: PGSAFE migration risk check
+description: Analyze PostgreSQL migration SQL from Git objects and optionally publish a PR report
+inputs:
+  postgres-version:
+    description: PostgreSQL major version
+    default: '16'
+  fail-on:
+    description: error, warning or none
+    default: error
+  advisor:
+    description: Enable advisor
+    default: 'true'
+  preset:
+    description: recommended or strict
+    default: recommended
+  mode:
+    description: changed or all
+    default: changed
+  comment:
+    description: Publish same-repository PR comment
+    default: 'false'
+  token:
+    description: GitHub token for optional publishing
+    required: false
+  author-id:
+    description: Trusted numeric bot user ID
+    required: false
+outputs:
+  status:
+    description: Analysis status
+    value: ${{ steps.analyze.outputs.status }}
+  files-checked:
+    description: Number of SQL files
+    value: ${{ steps.analyze.outputs.files-checked }}
+  comment-status:
+    description: Publishing status
+    value: ${{ steps.analyze.outputs.comment-status }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: npm ci --ignore-scripts --no-audit --no-fund --prefix "$GITHUB_ACTION_PATH"
+    - id: analyze
+      shell: bash
+      env:
+        PGSAFE_POSTGRES_VERSION: ${{ inputs.postgres-version }}
+        PGSAFE_FAIL_ON: ${{ inputs.fail-on }}
+        PGSAFE_ADVISOR: ${{ inputs.advisor }}
+        PGSAFE_PRESET: ${{ inputs.preset }}
+        PGSAFE_MODE: ${{ inputs.mode }}
+        PGSAFE_COMMENT: ${{ inputs.comment }}
+        PGSAFE_TOKEN: ${{ inputs.token }}
+        PGSAFE_AUTHOR_ID: ${{ inputs.author-id }}
+      run: node "$GITHUB_ACTION_PATH/github-action/run.mjs"

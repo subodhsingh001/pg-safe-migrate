@@ -1,0 +1,31 @@
+name: PGSAFE migration risk
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+concurrency:
+  group: pgsafe-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch PR objects without checkout
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || exit 1
+          git -c "http.extraheader=AUTHORIZATION: bearer $GH_TOKEN" fetch --no-tags origin "refs/pull/$PR_NUMBER/head"
+      # Replace with reviewed full commit SHA before use.
+      - uses: subodhsingh001/pg-safe-migrate@REPLACE_WITH_REVIEWED_COMMIT_SHA
+        with:
+          fail-on: error
+          comment: 'false'
