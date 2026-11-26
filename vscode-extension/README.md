@@ -1,6 +1,6 @@
 # PG Safe Migrate — VS Code Extension
 
-Standalone PostgreSQL migration linting for `.sql` files, powered by the bundled `@subodh001/pg-safe-migrate` CLI.
+Standalone PostgreSQL migration linting for `.sql` files, powered by the bundled PG Safe Migrate CLI.
 
 ## Features
 

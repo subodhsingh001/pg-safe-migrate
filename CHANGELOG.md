@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1]
+
+- Make `pgsafe` the standalone npm engine instead of a wrapper.
+- Preserve the `pg-safe-migrate` executable and configuration filename.
+- Update installation documentation and consumer CI example.
+- No changes to SQL analysis rules.
+
 ## [2.7.0]
 
 ### Added

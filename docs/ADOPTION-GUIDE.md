@@ -1,17 +1,17 @@
-# PG Safe Migrate — adoption guide (Week 3 development candidate)
+# PG Safe Migrate — adoption guide
 
 PG Safe Migrate statically detects configured PostgreSQL migration risks. It does **not** run migrations, prove zero downtime, or replace a deployment review.
 
 ## 1. Try the published CLI
 
-Requirements: Node.js 18+. The current published npm CLI is v2.4.0; the Week 3 options below are **not** part of that published version.
+Requirements: Node.js 18+. Use the standalone CLI starting with v2.7.1.
 
 ```sh
-npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate --help
-npx --yes --package=@subodh001/pg-safe-migrate@2.4.0 pg-safe-migrate prisma/migrations
+npx --yes pgsafe@2.7.1 --help
+npx --yes pgsafe@2.7.1 prisma/migrations
 ```
 
-To evaluate Week 3 functionality, run from a checkout containing the Day 1–5 patches:
+To evaluate policy functionality from a source checkout:
 
 ```sh
 npm ci

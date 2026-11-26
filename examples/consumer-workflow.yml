@@ -19,4 +19,4 @@ jobs:
       - name: Check changed SQL
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: npx --yes --package=@subodh001/pg-safe-migrate@2.6.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
+        run: npx --yes pgsafe@2.7.1 --changed "origin/$BASE_REF" --fail-on error

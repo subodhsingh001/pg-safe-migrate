@@ -1,9 +1,10 @@
 {
-  "name": "@subodh001/pg-safe-migrate",
-  "version": "2.7.0",
+  "name": "pgsafe",
+  "version": "2.7.1",
   "description": "Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway",
   "type": "module",
   "bin": {
+    "pgsafe": "bin/cli.js",
     "pg-safe-migrate": "bin/cli.js"
   },
   "scripts": {
@@ -65,5 +66,8 @@
   "bugs": {
     "url": "https://github.com/subodhsingh001/pg-safe-migrate/issues"
   },
-  "homepage": "https://github.com/subodhsingh001/pg-safe-migrate#readme"
+  "homepage": "https://github.com/subodhsingh001/pg-safe-migrate#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

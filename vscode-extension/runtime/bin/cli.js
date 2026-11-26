@@ -22,7 +22,7 @@ import { loadTeamPolicy, assessTeamPolicy, assessLintPolicy, validateGateConfig,
 import { loadProductionContext, productionAssessment } from '../src/production-context.js';
 import { createRiskBaseline, loadRiskBaseline, compareRiskBaseline, writeRiskBaseline } from '../src/risk-baseline.js';
 
-program.name('pg-safe-migrate').description('AST-based PostgreSQL migration risk linter (not a downtime guarantee)').version(version)
+program.name('pgsafe').description('AST-based PostgreSQL migration risk linter (not a downtime guarantee)').version(version)
  .argument('[target]', 'SQL file or migrations directory')
  .option('-c, --changed [baseBranch]', 'Lint changed SQL files')
  .option('--format <format>', 'text, json, sarif or markdown', 'text')

@@ -4,7 +4,7 @@
 
 Open-source, AST-based migration linting for Prisma, Drizzle, Flyway and raw SQL. Detect destructive changes, locking risks and transaction hazards before deployment.
 
-[![npm version](https://img.shields.io/npm/v/@subodh001/pg-safe-migrate)](https://www.npmjs.com/package/@subodh001/pg-safe-migrate) [![VS Code](https://img.shields.io/visual-studio-marketplace/v/sukoaa.pg-safe-migrate-vscode)](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/pgsafe)](https://www.npmjs.com/package/pgsafe) [![VS Code](https://img.shields.io/visual-studio-marketplace/v/sukoaa.pg-safe-migrate-vscode)](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) [![MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 [Product website](https://www.sukoaa.com/pg-safe-migrate) · [Rule reference](docs/RULES.md) · [VS Code](https://marketplace.visualstudio.com/items?itemName=sukoaa.pg-safe-migrate-vscode) · [Report an issue](https://github.com/subodhsingh001/pg-safe-migrate/issues)
 
@@ -15,14 +15,14 @@ Open-source, AST-based migration linting for Prisma, Drizzle, Flyway and raw SQL
 Requires Node.js 18 or later; use a maintained Node.js release for new installations.
 
 ```sh
-npx --yes --package=@subodh001/pg-safe-migrate@2.7.0 pg-safe-migrate
+npx pgsafe
 ```
 
 Or install in your project:
 
 ```sh
-npm install --save-dev @subodh001/pg-safe-migrate
-npx --no-install pg-safe-migrate prisma/migrations --advisor
+npm install --save-dev pgsafe
+npx --no-install pgsafe prisma/migrations --advisor
 ```
 
 Use `drizzle`, `db/migrations` or a specific SQL file instead of `prisma/migrations`. With no path, the CLI detects common migration directories.
@@ -38,6 +38,10 @@ unsafe.sql:1:1 [PG002] error: Dropping column "users.email" can break older appl
 ```
 
 Remove application references before dropping the column in a later deployment. A passing lint check is not a guarantee of zero downtime.
+
+### Existing installations
+
+The standalone `pgsafe` package replaces the wrapper starting in 2.7.1. Existing scoped releases remain available. To migrate a project, uninstall `@subodh001/pg-safe-migrate` and install `pgsafe`; do not install both packages in the same project because both expose `pg-safe-migrate`. The legacy executable and configuration filename remain supported.
 
 ## GitHub Actions
 
@@ -65,7 +69,7 @@ jobs:
       - name: Check changed SQL
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: npx --yes --package=@subodh001/pg-safe-migrate@2.7.0 pg-safe-migrate --changed "origin/$BASE_REF" --fail-on error
+        run: npx --yes pgsafe@2.7.1 --changed "origin/$BASE_REF" --fail-on error
 ```
 
 Start with reporting-only mode (`--fail-on none`) if introducing linting into an existing project. Review findings before enforcing a gate. See the [adoption guide](docs/ADOPTION-GUIDE.md).
@@ -167,7 +171,7 @@ Multiple rule IDs can be specified using commas.
 ### Generate an audit report
 
 ```sh
-npx --no-install pg-safe-migrate migrations \
+npx --no-install pgsafe migrations \
   --config pg-safe-migrate.config.json \
   --format json \
   --output migration-report.json
@@ -199,7 +203,7 @@ Example `enterprise-policy.json`:
 Run the enterprise gate:
 
 ```sh
-npx --no-install pg-safe-migrate migrations \
+npx --no-install pgsafe migrations \
   --config pg-safe-migrate.config.json \
   --gate-policy enterprise-policy.json \
   --format json \
