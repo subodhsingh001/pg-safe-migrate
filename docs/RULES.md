@@ -1,6 +1,6 @@
 # Rule reference (development branch)
 
-23 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 require a target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata. Catalog `defaultSeverity` preserves raw rule metadata; `defaultCliSeverity` describes default CLI reporting. PG024 and PG025 are raw warnings but CLI errors by default.
+27 catalog identifiers, including legacy PG013; PG009 and PG018 are unused. PG013 is suppressed when PG025 is emitted. PG019 and PG020 require a target version below 15; PG014 targets PostgreSQL 10. Defaults below describe CLI reporting, not raw engine metadata. Catalog `defaultSeverity` preserves raw rule metadata; `defaultCliSeverity` describes default CLI reporting. PG024 and PG025 are raw warnings but CLI errors by default.
 
 | ID | Diagnostic | Default | Guidance |
 |---|---|---|---|
@@ -29,3 +29,16 @@
 | PG025 | SET NOT NULL may scan table | error | Backfill and validate a CHECK constraint first where appropriate. |
 
 PG017 also covers Flyway nontransactional execution advice. Rules are configurable using `rules` with `off`, `warning`, or `error`. Static findings are not a downtime guarantee.
+
+### Advanced rules (opt-in)
+
+Enable individually in `pg-safe-migrate.config.json` under `rules` using `warning` or `error`. Existing presets do not enable these rules.
+
+| Rule | Scope |
+|---|---|
+| PG026 | Visible positive lock_timeout before selected DDL; session and explicit transaction tracking is conservative. External settings, implicit runner transactions and dynamic SQL are not proven. |
+| PG027 | Integer primary keys declared in CREATE TABLE; no existing schema or sequence inspection. |
+| PG028 | Concurrent index operations in multi-statement Prisma migrations; advisory, not proof of transaction wrapping. |
+| PG029 | Bounded varchar and timestamp without time zone in CREATE TABLE or ALTER column definitions; legitimate uses exist. |
+
+Example: `{"rules":{"PG026":"warning","PG027":"warning","PG028":"warning","PG029":"warning"}}`.

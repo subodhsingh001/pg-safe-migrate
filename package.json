@@ -1,6 +1,6 @@
 {
   "name": "pgsafe",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "description": "Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway",
   "type": "module",
   "bin": {

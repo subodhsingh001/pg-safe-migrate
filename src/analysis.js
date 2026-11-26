@@ -1,3 +1,4 @@
+import { advancedChecks } from './rules/advancedRules.js';
 import { parseSqlFile } from './parser.js';
 import { lintStatements } from './engine.js';
 import { advise } from './advisor.js';
@@ -5,7 +6,7 @@ import { lockFor } from './locks.js';
 import { normalizeSuppression } from './config.js';
 import { matchSuppressions } from './suppression-matcher.js';
 
-const ADVISORY_RULES = new Set(['PG015', 'PG016', 'PG017']);
+const ADVISORY_RULES = new Set(['PG015', 'PG016', 'PG017', 'PG026', 'PG027', 'PG028', 'PG029']);
 
 export function position(sql, offset = 0) {
   const source = String(sql ?? '');
@@ -240,6 +241,7 @@ export async function analyzeFiles(
     }
     const framework = frameworkFor(file);
     const locate = createPositionTracker(sql);
+    const advanced = advancedChecks(parsed, framework, config.rules);
 
     let inTransaction = false;
 
@@ -269,6 +271,7 @@ export async function analyzeFiles(
 
       const issues = [
         ...ruleIssues,
+        ...(advanced.get(offset) || []),
         ...extraIssues.filter(
           issue =>
             !(hasPG025 && issue.ruleId === 'PG013')

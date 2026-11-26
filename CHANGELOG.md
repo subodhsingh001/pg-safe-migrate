@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.9.0] — development candidate (not published)
+
+- Add opt-in PG026–PG029 static advisories.
+- Invoke npm CLI directly without a shell in release verification.
+- Existing default rule behavior remains unchanged.
+
+
 ## [2.8.0] — release candidate (not published)
 
 - Add installable repository-hosted GitHub Action with bounded Git-object analysis, PR reporting and optional comment publishing.

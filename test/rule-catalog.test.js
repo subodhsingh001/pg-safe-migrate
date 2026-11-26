@@ -21,9 +21,9 @@ test('catalog CLI supports JSON output', () => {
 });
 
 test('catalog covers implemented identifiers and default CLI severity', () => {
-  const expected = Array.from({length:25}, (_,i)=>i+1).filter(n=>n!==9 && n!==18).map(n=>`PG${String(n).padStart(3,'0')}`);
+  const expected = Array.from({length:29}, (_,i)=>i+1).filter(n=>n!==9 && n!==18).map(n=>`PG${String(n).padStart(3,'0')}`);
   assert.deepEqual(RULE_CATALOG.map(r=>r.id).sort(), expected);
-  for (const rule of RULE_CATALOG) assert.equal(rule.defaultCliSeverity, ['PG015','PG016','PG017'].includes(rule.id) ? 'WARNING' : 'ERROR');
+  for (const rule of RULE_CATALOG) assert.equal(rule.defaultCliSeverity, ['PG015','PG016','PG017','PG026','PG027','PG028','PG029'].includes(rule.id) ? 'WARNING' : 'ERROR');
   assert.match(getRule('PG013').title, /legacy/i);
   assert.match(getRule('PG017').title, /Flyway/i);
 });

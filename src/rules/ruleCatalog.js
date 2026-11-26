@@ -22,10 +22,14 @@ const definitions = [
   ['PG022','SET LOGGED rewrites table','rewrite','ERROR',null,'Schedule controlled maintenance and evaluate alternatives.'],
   ['PG023','TRUNCATE removes table rows','data-loss','ERROR',null,'Confirm retention, backups and downstream dependencies.'],
   ['PG024','Dropping a constraint','constraint','WARNING',null,'Review dependent queries and data-integrity requirements.'],
-  ['PG025','SET NOT NULL may scan table','constraint','WARNING',null,'Backfill and validate a CHECK constraint first where appropriate.']
+  ['PG025','SET NOT NULL may scan table','constraint','WARNING',null,'Backfill and validate a CHECK constraint first where appropriate.'],
+  ['PG026','Lock timeout scope advisory','locking','WARNING',null,'Verify a positive lock_timeout in the execution session.'],
+  ['PG027','Integer primary key capacity','capacity','WARNING',null,'Estimate growth and consider bigint.'],
+  ['PG028','Mixed Prisma concurrent index migration','integration','WARNING',null,'Verify standalone nontransactional execution.'],
+  ['PG029','Column type semantics advisory','compatibility','WARNING',null,'Review length constraints and time semantics.']
 ];
 
-export const RULE_CATALOG = Object.freeze(definitions.map(([id,title,category,defaultSeverity,minPostgresVersion,recommendation]) => Object.freeze({id,title,category,defaultSeverity,defaultCliSeverity: ['PG024','PG025'].includes(id) ? 'ERROR' : defaultSeverity,minPostgresVersion,recommendation})));
+export const RULE_CATALOG = Object.freeze(definitions.map(([id,title,category,defaultSeverity,minPostgresVersion,recommendation]) => Object.freeze({id,title,category,defaultSeverity,defaultCliSeverity: ['PG024','PG025'].includes(id) ? 'ERROR' : defaultSeverity,minPostgresVersion,recommendation, ...(['PG026','PG027','PG028','PG029'].includes(id) ? { optIn: true } : {})})));
 
 export function getRule(id) {
   return RULE_CATALOG.find(rule => rule.id === String(id).toUpperCase()) ?? null;

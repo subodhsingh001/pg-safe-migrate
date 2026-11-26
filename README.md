@@ -253,3 +253,16 @@ npm pack --dry-run
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). MIT licensed.
+
+### Advanced rules (opt-in)
+
+Enable individually in `pg-safe-migrate.config.json` under `rules` using `warning` or `error`. Existing presets do not enable these rules.
+
+| Rule | Scope |
+|---|---|
+| PG026 | Visible positive lock_timeout before selected DDL; session and explicit transaction tracking is conservative. External settings, implicit runner transactions and dynamic SQL are not proven. |
+| PG027 | Integer primary keys declared in CREATE TABLE; no existing schema or sequence inspection. |
+| PG028 | Concurrent index operations in multi-statement Prisma migrations; advisory, not proof of transaction wrapping. |
+| PG029 | Bounded varchar and timestamp without time zone in CREATE TABLE or ALTER column definitions; legitimate uses exist. |
+
+Example: `{"rules":{"PG026":"warning","PG027":"warning","PG028":"warning","PG029":"warning"}}`.
