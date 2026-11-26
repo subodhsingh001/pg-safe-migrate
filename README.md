@@ -300,3 +300,6 @@ Optional per-table `backfill` metadata declares `primaryKey` (one to eight exist
 `node bin/cli.js generate examples/generator-completion.sql --schema-context examples/generator-completion-context.json --framework prisma`
 
 Choose `auto` (default), `prisma`, `drizzle`, `flyway` or `raw`. Auto uses conventional path segments only; custom layouts require an explicit selection. Reports include suggested migration layout, transaction guidance and recovery notes. Concurrent index templates require a nontransactional runner. Review installed framework versions and settings; no migration history, schema files or database state is modified. Reports are not executable migration bundles.
+
+### Generator database verification (development)
+Run `node scripts/verify-generator-db.cjs` with Docker available. This explicitly starts a fresh network-disabled PostgreSQL 16 container, executes selected generated templates against synthetic data, checks batch bounds, NULL handling and repeatability, and removes the container. It does not connect to production. Concurrent worker and ORM runner verification remain separate checks.

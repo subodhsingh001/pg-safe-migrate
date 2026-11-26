@@ -12,7 +12,8 @@
   "publisher": "sukoaa",
   "activationEvents": [
     "onLanguage:sql",
-    "onCommand:pgSafeMigrate.lintFile"
+    "onCommand:pgSafeMigrate.lintFile",
+    "onCommand:pgSafeMigrate.generatePlan"
   ],
   "categories": [
     "Linters",
@@ -23,12 +24,20 @@
       {
         "command": "pgSafeMigrate.lintFile",
         "title": "PG Safe Migrate: Lint Current SQL File"
+      },
+      {
+        "command": "pgSafeMigrate.generatePlan",
+        "title": "PGSAFE: Generate Migration Plan"
       }
     ],
     "menus": {
       "editor/context": [
         {
           "command": "pgSafeMigrate.lintFile",
+          "when": "resourceExtname == .sql"
+        },
+        {
+          "command": "pgSafeMigrate.generatePlan",
           "when": "resourceExtname == .sql"
         }
       ]

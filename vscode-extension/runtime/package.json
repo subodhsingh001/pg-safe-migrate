@@ -1,6 +1,6 @@
 {
   "name": "pgsafe",
-  "version": "2.7.1",
+  "version": "2.9.0",
   "description": "Detect risky PostgreSQL schema migrations before deployment: SQL linting, lock analysis, risk scoring and CI reports for Prisma, Drizzle and Flyway",
   "type": "module",
   "bin": {
@@ -13,7 +13,8 @@
     "test:integration": "node scripts/test-pg-matrix.cjs",
     "lint": "node bin/cli.js",
     "pack:check": "npm pack --dry-run",
-    "test:release": "npm run test:unit && node test/release-smoke.cjs"
+    "test:release": "npm run test:unit && node test/release-smoke.cjs",
+    "test:action-release": "node scripts/action-release-check.mjs"
   },
   "keywords": [
     "postgresql",

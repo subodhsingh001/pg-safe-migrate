@@ -90,6 +90,7 @@ function harness(settings = {}, fixture = false, security = {}) {
   fs.mkdirSync(isolated);
   const isolatedPath = path.join(isolated, 'extension.cjs');
   fs.copyFileSync(extensionPath, isolatedPath);
+  fs.copyFileSync(path.join(path.dirname(extensionPath), 'generate-plan.cjs'), path.join(isolated, 'generate-plan.cjs'));
   if (security.bundled !== false) {
     fs.mkdirSync(path.join(isolated, 'runtime', 'bin'), { recursive: true });
     fs.writeFileSync(path.join(isolated, 'runtime', 'bin', 'cli.js'), '');

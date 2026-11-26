@@ -71,3 +71,6 @@ The release workflow builds and verifies a VSIX. A `vscode-v*` tag or manual dis
 Large SQL inputs can consume substantial memory even below the file size limit. Concurrency and timeout settings are not hard process memory limits.
 
 Linting and disposable-database simulations cannot guarantee production safety, zero downtime, or automatic rollback. Review migration plans and backups before deploying changes.
+
+### Migration plan preview (development)
+Rebuild the standalone runtime before testing. Open a saved SQL file in a trusted workspace and select **PGSAFE: Generate Migration Plan** from the command palette or editor context menu. Select framework, optional reviewed JSON context, and Markdown or JSON. The report opens as an untitled text document; use normal VS Code Copy and Save As to export it. No SQL is executed and no migration is edited. The preview is editable text, not an approved migration. Only one generator request runs at a time, with a 30-second timeout and 4 MiB output limit.
