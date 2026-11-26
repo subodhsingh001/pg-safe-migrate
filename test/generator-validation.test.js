@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {planStatements,renderPlan} from '../src/generator.js';
+import {addValidation} from '../src/generator-validation.js';
+import {applyContext} from '../src/generator-context.js';
+const relation={schemaname:'public',relname:'users'};
+const rename=[{stmt:{RenameStmt:{renameType:'OBJECT_COLUMN',relation,subname:'email',newname:'email_new'}}}];
+const make=(s=rename,c)=>addValidation(applyContext(planStatements(s),s,c),s,c);
+test('validation never claims execution',()=>assert.equal(make().operations[0].validation.status,'not-executed'));
+test('preflight catalog checks',()=>assert.equal(make().operations[0].validation.checks.filter(c=>c.phase==='preflight').length,3));
+test('post backfill mismatch',()=>assert.match(make().operations[0].validation.checks.at(-1).sql,/IS DISTINCT FROM/));
+test('recovery covers irreversible contract',()=>assert.match(make().operations[0].recovery.at(-1).action,/irreversible/));
+test('unknown operation stays manual',()=>assert.equal(make([{stmt:{DropStmt:{}}}]).operations[0].validation.checks.length,0));
+test('catalog literal escapes quotes',()=>{const s=structuredClone(rename);s[0].stmt.RenameStmt.relation.relname="user's";assert.match(make(s).operations[0].validation.checks[0].sql,/user''s/);});
+test('markdown and JSON retain validation',()=>{const p=make();assert.match(renderPlan(p),/Validation status: not-executed/);assert.equal(JSON.parse(renderPlan(p,'json')).operations[0].validation.status,'not-executed');});
+test('index checks validity and readiness',()=>{const s=[{stmt:{IndexStmt:{relation,idxname:'users_idx',indexParams:[{IndexElem:{name:'email'}}]}}}];assert.match(make(s).operations[0].validation.checks.at(-1).sql,/indisvalid, i.indisready/);});
+test('constraint validation checks definition',()=>{const s=[{stmt:{AlterTableStmt:{relation,cmds:[{AlterTableCmd:{subtype:'AT_SetNotNull',name:'email'}}]}}}];const c={schemaVersion:1,tables:[{schema:'public',table:'users',columns:[{name:'email',type:'text'}],notNullCheckName:'email_nn'}]};assert.match(make(s,c).operations[0].validation.checks.at(-1).sql,/convalidated/);});

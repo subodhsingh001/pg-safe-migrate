@@ -39,5 +39,5 @@ export function planStatements(statements) {
 export function renderPlan(plan,format='text') {
  if(format==='json') return JSON.stringify(plan,null,2);
  if(!['text','markdown'].includes(format)) throw new Error('format must be text, markdown or json');
- return ['# Migration plan — review required',...plan.limitations,...plan.operations.flatMap(o=>['',`## Statement ${o.statement}: ${o.kind}`,...o.steps.flatMap(s=>[`${s.phase}: ${s.instruction}`,...(s.sql?['```sql',s.sql,'```']:[])]),`Rollback: ${o.rollback}`])].join('\n');
+ return ['# Migration plan — review required',...plan.limitations,...plan.operations.flatMap(o=>['',`## Statement ${o.statement}: ${o.kind}`,...o.steps.flatMap(s=>[`${s.phase}: ${s.instruction}`,...(s.sql?['```sql',s.sql,'```']:[])]),`Rollback: ${o.rollback}`,...(o.validation?[`Validation status: ${o.validation.status}`,...o.validation.checks.flatMap(c=>[`${c.phase}: ${c.expectation}`,'```sql',c.sql,'```']),...o.validation.manual,...o.recovery.map(r=>`Recovery (${r.stage}): ${r.action}`)]:[])])].join('\n');
 }
