@@ -280,3 +280,7 @@ The primary npm package is `pgsafe`. The historical scoped package `@subodh001/p
 `node bin/cli.js generate examples/generator.sql --schema-context examples/generator-context.json --format markdown`
 
 Context schema version 1 lists schema/table names, existing columns and reviewed built-in types. An optional `notNullCheckName` supplies a proposed constraint name; verify it is unused. Rename templates require a known source type and absent destination in the supplied context. NOT NULL templates separate CHECK NOT VALID and VALIDATE CONSTRAINT. No live schema inspection, destructive SQL, automatic execution, type conversion SQL or index templates are provided by this preview. Verify context against the database before use.
+
+### Generator: additional review templates (development)
+
+Schema context accepts bounded `varchar(n)` and `numeric(p,s)` with nonnegative scale no greater than precision. For integer widening (smallint to integer/bigint, integer to bigint), provide a reviewed unused `shadowColumn` in the table context. Only the nullable shadow column is generated; no conversion or backfill SQL is emitted. Other conversions require manual review. Simple named nonunique B-tree indexes on schema-qualified tables receive a concurrent creation template; complex indexes require manual review. Verify partitioning, dependencies, index names, live schema and transaction boundaries before use. Templates are independent review suggestions, not an ordered executable bundle.

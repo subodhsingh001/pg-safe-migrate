@@ -15,6 +15,12 @@ export function planStatements(statements) {
     step('switch','Switch reads after validation; retain dual writes during the rollback window.'),
     step('contract','Only after old clients are retired, review dependencies and separately approve removal of the old column. No destructive SQL generated.')],rollback:'Before contract, restore old reads while maintaining synchronized writes. After contract, recovery requires a separately tested restoration plan.'};
   }
+  const idx=stmt.IndexStmt;
+  if(idx && !idx.concurrent) {
+   const simple=idx.idxname && idx.relation?.schemaname && idx.relation?.relname && (!idx.accessMethod || idx.accessMethod==='btree') && !idx.unique && !idx.primary && !idx.isconstraint && !idx.whereClause && !idx.indexIncludingParams?.length && !idx.options?.length && !idx.tableSpace && !idx.excludeOpNames?.length && !idx.if_not_exists && idx.indexParams?.length && idx.indexParams.every(p=>{const e=p.IndexElem;return e?.name && !e.expr && !e.collation?.length && !e.opclass?.length && !e.opclassopts?.length && (!e.ordering || e.ordering==='SORTBY_DEFAULT') && (!e.nulls_ordering || e.nulls_ordering==='SORTBY_NULLS_DEFAULT');});
+   const sql=simple?`CREATE INDEX CONCURRENTLY ${quote(idx.idxname)} ON ${table(idx.relation)} (${idx.indexParams.map(p=>quote(p.IndexElem.name)).join(', ')});`:null;
+   return {statement:i+1,kind:'create-index',steps:[step('review','Verify table is not partitioned, index name is unused, columns exist, and runner executes outside a transaction. Complex indexes require manual review.',sql)],rollback:'Inspect invalid indexes after failure; review cleanup separately. No destructive SQL generated.'};
+  }
   if(alter?.cmds?.length===1) {
    const c=alter.cmds[0].AlterTableCmd;
    if(c?.subtype==='AT_SetNotNull') {

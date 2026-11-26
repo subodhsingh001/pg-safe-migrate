@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {planStatements} from '../src/generator.js';
+import {applyContext,reviewedType} from '../src/generator-context.js';
+const relation={schemaname:'public',relname:'users'};
+const context={schemaVersion:1,tables:[{schema:'public',table:'users',columns:[{name:'id',type:'integer'}],shadowColumn:'id_new'}]};
+const alter=(type='int8',extra={})=>[{stmt:{AlterTableStmt:{relation,cmds:[{AlterTableCmd:{subtype:'AT_AlterColumnType',name:'id',def:{ColumnDef:{typeName:{names:[{String:{sval:'pg_catalog'}},{String:{sval:type}}]},...extra}}}}]}}}];
+const sql=(s,c=context)=>applyContext(planStatements(s),s,c).operations[0].steps[0].sql;
+const index=(extra={})=>[{stmt:{IndexStmt:{relation,idxname:'users_id_idx',accessMethod:'btree',indexParams:[{IndexElem:{name:'id'}}],...extra}}}];
+test('parameterized context types',()=>{assert.equal(reviewedType('varchar(255)'),'varchar(255)');assert.equal(reviewedType('numeric(12,2)'),'numeric(12,2)');});
+test('invalid types rejected',()=>{for(const v of ['varchar(0)','numeric(2,3)','text; SELECT 1','varchar(99999999)'])assert.equal(reviewedType(v),null);});
+test('integer widening shadow template',()=>assert.equal(sql(alter()),'ALTER TABLE "public"."users" ADD COLUMN "id_new" bigint;'));
+test('unsupported conversion omitted',()=>assert.equal(sql(alter('text')),null));
+test('custom conversion omitted',()=>assert.equal(sql(alter('int8',{raw_default:{}})),null));
+test('existing shadow omitted',()=>assert.equal(sql(alter(),{...context,tables:[{...context.tables[0],shadowColumn:'id'}]}),null));
+test('simple concurrent index',()=>assert.equal(sql(index()),'CREATE INDEX CONCURRENTLY "users_id_idx" ON "public"."users" ("id");'));
+test('complex indexes omitted',()=>{for(const e of [{unique:true},{whereClause:{}},{indexParams:[{IndexElem:{name:'id',ordering:'SORTBY_DESC'}}]}])assert.equal(sql(index(e)),null);});
