@@ -1,0 +1,11 @@
+{
+  "severity": "error",
+  "postgresVersion": 16,
+  "exclude": ["legacy/"],
+  "rules": {
+    "PG026": "warning",
+    "PG027": "warning",
+    "PG028": "warning",
+    "PG029": "warning"
+  }
+}

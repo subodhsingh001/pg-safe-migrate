@@ -1,4 +1,8 @@
 const plans = {
+ PG026:['Review runner session settings.','Set a bounded lock timeout in the effective scope.','Test contention and retry behavior.'],
+ PG027:['Estimate lifetime key allocations.','Review sequence and foreign key types.','Consider bigint for high-growth tables.'],
+ PG028:['Separate concurrent index operations.','Verify Prisma execution grouping.','Test on staging.'],
+ PG029:['Confirm length and time semantics.','Review application validation and conversions.','Avoid unnecessary type rewrites.'],
  PG001:['Confirm the runner is non-transactional.','Create the index CONCURRENTLY.','Monitor and clean up invalid indexes after failure.'],
  PG002:['Deploy code that no longer reads or writes the old column.','Verify all old application instances are retired.','Drop the column in a later deployment.'],
  PG003:['Assess type conversion and rewrite requirements.','Consider a replacement column with batched backfill.','Switch readers and writers before retiring the old column.'],
