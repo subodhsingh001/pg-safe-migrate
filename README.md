@@ -294,3 +294,9 @@ Optional per-table `backfill` metadata declares `primaryKey` (one to eight exist
 ### Generator validation and recovery preview
 
 `pgsafe generate examples/generator-backfill.sql --schema-context examples/generator-backfill-context.json --format json` includes per-operation `validation` and `recovery` fields. Validation status is always `not-executed`. Catalog checks inspect table shape, direct dependencies, supported index state and reviewed CHECK constraints. Review results with an appropriately privileged role; RLS and concurrent writes can invalidate conclusions. Recovery guidance is stage-specific and never executes or emits destructive rollback commands. Unsupported operations require manual review. No automatic readiness approval is provided.
+
+### Generator framework guidance (v3 development)
+
+`node bin/cli.js generate examples/generator-completion.sql --schema-context examples/generator-completion-context.json --framework prisma`
+
+Choose `auto` (default), `prisma`, `drizzle`, `flyway` or `raw`. Auto uses conventional path segments only; custom layouts require an explicit selection. Reports include suggested migration layout, transaction guidance and recovery notes. Concurrent index templates require a nontransactional runner. Review installed framework versions and settings; no migration history, schema files or database state is modified. Reports are not executable migration bundles.

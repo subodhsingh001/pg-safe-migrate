@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {addFramework,detectGeneratorFramework} from '../src/generator-framework.js';
+import {renderPlan} from '../src/generator.js';
+const plan=()=>({limitations:[],operations:[{statement:1,kind:'create-index',steps:[{phase:'review',sql:'CREATE INDEX CONCURRENTLY x ON t (id);',instruction:'Review'}],rollback:'Review'}]});
+for(const [file,name] of [['C:\\repo\\prisma\\migrations\\a\\migration.sql','prisma'],['drizzle/001.sql','drizzle'],['src/main/resources/db/migration/V1__a.sql','flyway'],['migrations/001.sql','raw']]) test(`detect ${name}`,()=>assert.equal(detectGeneratorFramework(file),name));
+test('ambiguous path rejected',()=>assert.throws(()=>detectGeneratorFramework('drizzle/prisma/migrations/a.sql')));
+test('explicit override',()=>assert.equal(addFramework(plan(),'drizzle/a.sql','raw').framework.name,'raw'));
+test('invalid framework rejected',()=>assert.throws(()=>addFramework(plan(),'a.sql','unknown')));
+for(const name of ['prisma','drizzle','flyway','raw']) test(`${name} concurrent index outside transaction`,()=>{const p=addFramework(plan(),'a.sql',name);assert.equal(p.operations[0].frameworkSteps[0].execution,'outside-transaction');assert.match(renderPlan(p,'markdown'),/outside-transaction/);assert.equal(JSON.parse(renderPlan(p,'json')).framework.name,name);});
+test('manual stages and batches remain distinct',()=>{const p=plan();p.operations[0].kind='rename-column';p.operations[0].steps=[{phase:'backfill',sql:'UPDATE x'},{phase:'contract',sql:null}];addFramework(p,'a.sql');assert.deepEqual(p.operations[0].frameworkSteps.map(s=>s.execution),['one-short-transaction-per-batch','manual']);});

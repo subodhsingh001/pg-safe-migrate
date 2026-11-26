@@ -122,8 +122,9 @@ if (process.argv[2] === 'generate') {
  const { planStatements, renderPlan } = await import('../src/generator.js');
  const { applyContext } = await import('../src/generator-context.js');
  const { addValidation } = await import('../src/generator-validation.js');
+ const { addFramework } = await import('../src/generator-framework.js');
  const { parseSqlFile } = await import('../src/parser.js');
- const generator = new Command().name('pgsafe generate').argument('<file>').option('--format <format>', 'text, markdown or json', 'text').option('--schema-context <file>', 'Reviewed schema context JSON').option('--output <file>', 'Create a new report file; never overwrite').action(async (file, opts) => {
+ const generator = new Command().name('pgsafe generate').argument('<file>').option('--format <format>', 'text, markdown or json', 'text').option('--schema-context <file>', 'Reviewed schema context JSON').option('--framework <name>', 'auto, prisma, drizzle, flyway or raw', 'auto').option('--output <file>', 'Create a new report file; never overwrite').action(async (file, opts) => {
   try {
    const stat = fs.statSync(file);
    if (!stat.isFile() || stat.size > 2 * 1024 * 1024) throw new Error('Expected a SQL file of at most 2 MiB');
@@ -137,7 +138,7 @@ if (process.argv[2] === 'generate') {
     if (!stat.isFile() || stat.size > 1024 * 1024) throw new Error('Expected schema context JSON of at most 1 MiB');
     context = JSON.parse(fs.readFileSync(opts.schemaContext, 'utf8'));
    }
-   const report = renderPlan(addValidation(applyContext(planStatements(parsed), parsed, context), parsed, context), opts.format);
+   const report = renderPlan(addFramework(addValidation(applyContext(planStatements(parsed), parsed, context), parsed, context), file, opts.framework), opts.format);
    if (opts.output) fs.writeFileSync(opts.output, report+'\n', {flag:'wx'});
    else console.log(report);
   } catch(e) { console.error(`Error: ${e.message}`); process.exitCode=2; }
