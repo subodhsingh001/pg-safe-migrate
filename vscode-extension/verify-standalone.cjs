@@ -5,13 +5,15 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const runtime = path.join(__dirname, 'runtime');
-for (const file of ['bin/cli.js', 'src/analysis.js', 'src/parser.js', 'node_modules/libpg-query/package.json', 'node_modules/commander/package.json', 'node_modules/chalk/package.json']) {
+for (const file of ['bin/cli.js', 'src/analysis.js', 'src/parser.js', 'node_modules/libpg-query/package.json', 'node_modules/commander/package.json', 'node_modules/chalk/package.json', 'node_modules/pg/package.json']) {
   assert.ok(fs.existsSync(path.join(runtime, file)), `Missing ${file}. Run npm run build:standalone`);
 }
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pg safe standalone '));
 try {
   const isolated = path.join(dir, 'isolated runtime');
   fs.cpSync(runtime, isolated, { recursive: true });
+  assert.equal(typeof require(path.join(isolated,'node_modules','pg')).Client,'function');
+  console.log('PASS: bundled PostgreSQL driver loads');
   const cli = path.join(isolated, 'bin', 'cli.js');
   const sql = path.join(dir, 'migration test.sql');
   function run(content, expectedCode = 0) {
