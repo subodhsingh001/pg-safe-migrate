@@ -95,3 +95,6 @@ Live inspection opens a side-by-side form with host, port, database, role, passw
 
 ### Connection diagnostics and metadata review
 The connection panel reports the current stage and a sanitized error code in the PGSAFE Connection output channel while the panel remains open. Raw driver errors and credentials are not logged. Successful discovery shows metadata before the user explicitly continues. Failed attempts retain form values for manual retry. Packaging verification checks that the isolated PostgreSQL driver loads. The connection is still read-only; metadata is a snapshot, not migration approval.
+
+### Saved connections
+Explicitly save or update a named connection in the Connection Manager. Connection details and password are stored together in VS Code SecretStorage; only profile names are in global state. Loading does not connect. Delete removes the saved secret. Static comparison covers only discovered type and single-key fields, not full schema drift. Live provenance is session-specific and does not establish migration readiness.

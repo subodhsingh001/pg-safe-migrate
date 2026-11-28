@@ -9,7 +9,8 @@ const copy = (from, to) => fs.cpSync(from, to, { recursive: true, force: true })
 for (const p of ['bin', 'src', 'package.json', 'package-lock.json']) {
   if (!fs.existsSync(path.join(root, p))) throw new Error(`Missing ${p} in main project`);
 }
-fs.rmSync(target, { recursive: true, force: true });
+try { fs.rmSync(target, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 }); }
+catch (e) { throw new Error('Cannot clean generated runtime. Close VS Code and retry from external PowerShell.', {cause:e}); }
 fs.mkdirSync(target, { recursive: true });
 for (const p of ['bin', 'src', 'package.json', 'package-lock.json']) copy(path.join(root, p), path.join(target, p));
 // npm ci installs locked production dependencies (including the PostgreSQL parser).

@@ -402,7 +402,7 @@ function activate(context) {
   );
 
   context.subscriptions.push(collection, output);
-  context.subscriptions.push(require('./generate-plan.cjs').register(vscode, findCli, settings));
+  context.subscriptions.push(require('./generate-plan.cjs').register(vscode, findCli, settings, context));
 
   context.subscriptions.push(
     vscode.commands.registerCommand(
