@@ -140,7 +140,7 @@ jobs:
           node test/verify-sarif.cjs report.sarif
 
       - name: Upload SARIF to GitHub code scanning
-        uses: github/codeql-action/upload-sarif@d2aacf54c2fbc910db8d7ec338fdb54ea48c692d # v3
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v3
         with:
           sarif_file: report.sarif
           category: release-verification
