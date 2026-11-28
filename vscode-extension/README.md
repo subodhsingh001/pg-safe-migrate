@@ -84,3 +84,5 @@ Generate Migration Plan defaults to automatic path-based framework selection and
 
 ### Migration Assistant form
 Choose Enter reviewed column details to open a dedicated editor panel. Simple schema-qualified renames prefill identifiers. Select the existing type and review the details. Optionally provide a single-column primary key, its type, batch size and explicit stable-key and synchronized-writer confirmations. The generator still produces review-only SQL; no database is connected. Composite keys and other advanced context remain available via reviewed JSON. Closing the panel cancels generation.
+
+The Migration Assistant attempts conservative static discovery for simple schema-qualified column renames in the containing workspace. It reads conventional Prisma schema files, simple SQL schema files, or a single Drizzle PostgreSQL snapshot, without executing project code. Ambiguous or unsupported candidates fall back to manual entry. Discovered values are suggestions, not live schema evidence; readiness confirmations remain unchecked. Multiple Drizzle snapshots, custom paths, complex SQL and Prisma native types require manual review.

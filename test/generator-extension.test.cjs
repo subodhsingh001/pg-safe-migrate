@@ -46,3 +46,17 @@ test('webview prefills rename and validates messages before resolving',async()=>
  const h=webviewHost(),p=enterContext(h.v,'ALTER TABLE public.users RENAME COLUMN email TO email_address;');assert.match(h.panel.webview.html,/value="email_address"/);assert.match(h.panel.webview.html,/default-src 'none'/);h.send({kind:'generate',data:{...details,review:false}});assert.equal(h.errors.length,1);h.send({kind:'generate',data:details});assert.equal((await p).tables[0].table,'users');
 });
 test('closing webview cancels schema entry',async()=>{const h=webviewHost(),p=enterContext(h.v);h.close();assert.equal(await p,undefined);});
+test('static discovery prefills reviewed candidates without asserting readiness',()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');const root=fs.mkdtempSync(path.join(os.tmpdir(),'pgsafe-discovery-'));try{
+ const {discover}=require('../vscode-extension/schema-discovery.cjs');fs.writeFileSync(path.join(root,'schema.prisma'),'model users {\n id BigInt @id\n email String\n}');assert.deepEqual(discover(root,defaults),{source:'schema.prisma',type:'text',key:'id',keyType:'bigint'});
+ fs.writeFileSync(path.join(root,'schema.sql'),'CREATE TABLE public.users (id bigint PRIMARY KEY, email text);');assert.equal(discover(root,defaults),null);fs.unlinkSync(path.join(root,'schema.prisma'));assert.equal(discover(root,defaults).source,'schema.sql');
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Prisma discovery and webview prefill support Windows CRLF and mapped tables',async()=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');const root=fs.mkdtempSync(path.join(os.tmpdir(),'pgsafe-crlf-'));try{
+ fs.mkdirSync(path.join(root,'prisma'));fs.writeFileSync(path.join(root,'prisma','schema.prisma'),'model User {\r\n  id BigInt @id\r\n  email String\r\n\r\n  @@map("users")\r\n}');
+ assert.deepEqual(require('../vscode-extension/schema-discovery.cjs').discover(root,defaults),{source:'prisma/schema.prisma',type:'text',key:'id',keyType:'bigint'});
+ const h=webviewHost(),p=enterContext(h.v,'ALTER TABLE public.users RENAME COLUMN email TO email_address;',root);assert.match(h.panel.webview.html,/id="key"[^>]*value="id"/);assert.match(h.panel.webview.html,/<option selected>bigint<\/option>/);h.close();await p;
+ }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
