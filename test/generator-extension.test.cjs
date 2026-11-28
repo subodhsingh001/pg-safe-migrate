@@ -60,3 +60,10 @@ test('Prisma discovery and webview prefill support Windows CRLF and mapped table
  const h=webviewHost(),p=enterContext(h.v,'ALTER TABLE public.users RENAME COLUMN email TO email_address;',root);assert.match(h.panel.webview.html,/id="key"[^>]*value="id"/);assert.match(h.panel.webview.html,/<option selected>bigint<\/option>/);h.close();await p;
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
+test('reviewed composite key preserves all columns and requires readiness assertions',()=>{
+ const keys=[{name:'tenant_id',type:'bigint'},{name:'id',type:'uuid'}];
+ const t=reviewedContext({...details,keys,batch:100},defaults).tables[0];
+ assert.deepEqual(t.backfill.primaryKey,['tenant_id','id']);assert.equal(t.backfill.dualWritesReady,false);
+ assert.throws(()=>reviewedContext({...details,keys:[keys[0],keys[0]],batch:100},defaults));
+ assert.throws(()=>reviewedContext({...details,keys:[{name:'email_address',type:'text'}],batch:100},defaults));
+});
