@@ -98,3 +98,6 @@ The connection panel reports the current stage and a sanitized error code in the
 
 ### Saved connections
 Explicitly save or update a named connection in the Connection Manager. Connection details and password are stored together in VS Code SecretStorage; only profile names are in global state. Loading does not connect. Delete removes the saved secret. Static comparison covers only discovered type and single-key fields, not full schema drift. Live provenance is session-specific and does not establish migration readiness.
+
+### Advanced database intelligence (preview)
+Connect & Discover additionally reads server version, approximate row count, relation and index sizes, columns/defaults, incoming and outgoing constraints, indexes, user triggers and direct catalog dependencies. These are bounded catalog results, not a full dependency graph; row estimates may be stale or unknown. Definitions can be truncated. Metadata stays in the inspection preview and does not automatically authorize or modify generated SQL. Existing ordinary-table and supported rename restrictions remain. Composite keys are displayed but are not automatically used for backfill. Catalog queries run in the existing read-only transaction with per-query timeouts; permissions or query failures abort inspection. Review metadata before sharing it.
