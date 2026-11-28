@@ -21,3 +21,28 @@ test('quick fix does not offer generator for unrelated diagnostics, dirty or unt
 test('generator rejects stale quick fix target before prompting',async()=>{
  let handler, warning; const v={workspace:{isTrusted:true},window:{activeTextEditor:{document:doc},showWarningMessage:m=>{warning=m;}},commands:{registerCommand:(n,fn)=>{handler=fn;}}}; register(v,()=>{throw Error('must not run');},()=>({})); await handler('file:///other.sql',7); assert.match(warning,/selection changed/); await handler('file:///migration.sql',6); assert.match(warning,/selection changed/);
 });
+const {indexFix,enterContext}=require('../vscode-extension/generate-plan.cjs');
+test('simple raw index edit preserves original spelling and whitespace',()=>assert.equal(indexFix('  create index ix ON public.users (email);\n','migrations/a.sql'),'  CREATE INDEX CONCURRENTLY ix ON public.users (email);\n'));
+test('index edit rejects complex and transactional SQL and ORM paths',()=>{
+ for(const sql of ['BEGIN; CREATE INDEX ix ON public.users (email); COMMIT;','CREATE UNIQUE INDEX ix ON public.users (email);','CREATE INDEX ix ON users (email);','CREATE INDEX ix ON public.users (email) WHERE email IS NOT NULL;','CREATE INDEX ix ON public.users (email); -- comment']) assert.equal(indexFix(sql,'a.sql'),null);
+ for(const file of ['prisma/migrations/a.sql','drizzle/a.sql','db/migration/a.sql','V1__a.sql']) assert.equal(indexFix('CREATE INDEX ix ON public.users (email);',file),null);
+});
+const {reviewedContext}=require('../vscode-extension/generate-plan.cjs');
+const details={schema:'public',table:'users',column:'email',type:'text',review:true};
+const defaults=['public','users','email','email_address'];
+test('reviewed context requires confirmation and never assumes writer readiness',()=>{
+ assert.throws(()=>reviewedContext({...details,review:false},defaults));
+ assert.deepEqual(reviewedContext(details,defaults),{schemaVersion:1,tables:[{schema:'public',table:'users',columns:[{name:'email',type:'text'}]}]});
+});
+test('reviewed context supports explicitly confirmed key and writers',()=>{
+ const t=reviewedContext({...details,key:'id',keyType:'bigint',batch:1000,stable:true,writers:true},defaults).tables[0]; assert.deepEqual(t.backfill,{primaryKey:['id'],batchSize:1000,stableKey:true,dualWritesReady:true});
+ assert.equal(reviewedContext({...details,key:'id',keyType:'bigint',batch:1000},defaults).tables[0].backfill.dualWritesReady,false);
+});
+test('reviewed context rejects invalid or mismatched data',()=>{
+ for(const d of [{table:'other'},{type:'text; DROP TABLE x'},{key:'email_address',keyType:'text',batch:1},{key:'id',keyType:'bigint',batch:10001}])assert.throws(()=>reviewedContext({...details,...d},defaults));
+});
+function webviewHost(){let receive,close;const errors=[];const panel={webview:{onDidReceiveMessage:f=>{receive=f;return {dispose(){}};},postMessage:m=>errors.push(m)},onDidDispose:f=>{close=f;return {dispose(){}};},dispose:()=>close()};return {v:{workspace:{isTrusted:true},ViewColumn:{Beside:2},window:{createWebviewPanel:()=>panel}},panel,errors,send:m=>receive(m),close:()=>close()};}
+test('webview prefills rename and validates messages before resolving',async()=>{
+ const h=webviewHost(),p=enterContext(h.v,'ALTER TABLE public.users RENAME COLUMN email TO email_address;');assert.match(h.panel.webview.html,/value="email_address"/);assert.match(h.panel.webview.html,/default-src 'none'/);h.send({kind:'generate',data:{...details,review:false}});assert.equal(h.errors.length,1);h.send({kind:'generate',data:details});assert.equal((await p).tables[0].table,'users');
+});
+test('closing webview cancels schema entry',async()=>{const h=webviewHost(),p=enterContext(h.v);h.close();assert.equal(await p,undefined);});

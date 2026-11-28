@@ -77,3 +77,10 @@ Rebuild the standalone runtime before testing. Open a saved SQL file in a truste
 
 ### Generate from Quick Fix
 On a saved SQL file in a trusted workspace, press Ctrl+. on a PGSAFE diagnostic and select **PGSAFE: Generate Migration Plan**. Existing advisory guidance remains available. The command checks the selected document and version, then opens a separate review-only report. No automatic edits or SQL execution.
+
+### Streamlined migration Quick Fix
+
+Generate Migration Plan defaults to automatic path-based framework selection and Markdown. Choose no context, enter a reviewed existing column's schema/table/name/type, or select an existing context JSON. Interactive context is temporary and does not infer primary keys, writer readiness, or live schema. JSON output remains available through the CLI. For a single simple schema-qualified nonunique CREATE INDEX in a raw-looking SQL path, PG001 also offers a reviewed concurrent index editor edit. Confirm the table is ordinary and nonpartitioned, the index name is unused, and the actual runner does not wrap the statement in a transaction. Path detection is not proof of runner behavior. No database connection or SQL execution occurs. Complex changes remain guidance only.
+
+### Migration Assistant form
+Choose Enter reviewed column details to open a dedicated editor panel. Simple schema-qualified renames prefill identifiers. Select the existing type and review the details. Optionally provide a single-column primary key, its type, batch size and explicit stable-key and synchronized-writer confirmations. The generator still produces review-only SQL; no database is connected. Composite keys and other advanced context remain available via reviewed JSON. Closing the panel cancels generation.
